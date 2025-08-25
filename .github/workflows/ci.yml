@@ -1,0 +1,12 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node check
+        run: echo "Node build pending..."
+      - name: Python check
+        run: echo "Python lint pending..."
