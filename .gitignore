@@ -15,3 +15,5 @@ build/
 # IDE and system files
 .vscode/
 .DS_Store
+
+api/scripts/
