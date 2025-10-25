@@ -19,7 +19,7 @@ export async function loginUser(email: string, password: string): Promise<AuthUs
 
     const user = data.user
     if (!user) throw new Error('No se pudo obtener el usuario de Supabase Auth.')
-    console.log('✅ Usuario autenticado:', user.email, '→', user.id)
+    console.log('Usuario autenticado:', user.email, '→', user.id)
 
     // Buscar el perfil vinculado con su rol
     const { data: profile, error: profileError } = await supabase
@@ -49,7 +49,7 @@ export async function loginUser(email: string, password: string): Promise<AuthUs
       rol,
     }
   } catch (err) {
-    console.error('❌ Error en loginUser:', err)
+    console.error(' Error en loginUser:', err)
     return null
   }
 }
@@ -59,8 +59,8 @@ export async function logoutUser(): Promise<void> {
   try {
     const { error } = await supabase.auth.signOut()
     if (error) throw error
-    console.log('👋 Sesión cerrada correctamente')
+    console.log(' Sesión cerrada correctamente')
   } catch (err) {
-    console.error('❌ Error al cerrar sesión:', err)
+    console.error(' Error al cerrar sesión:', err)
   }
 }

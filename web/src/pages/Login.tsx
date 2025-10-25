@@ -30,14 +30,14 @@ export default function Login() {
         case 'Administrador':
           navigate('/admin')
           break
-        case 'Medico':
+        case 'Médico':
           navigate('/medico')
           break
         case 'Enfermeria':
           navigate('/enfermeria')
           break
-        case 'Recepcionista':
-          navigate('/recepcion')
+        case 'Recepcionista / Asistente administrativo':
+          navigate('/recepcionista')
           break
         case 'Paciente':
           navigate('/paciente')

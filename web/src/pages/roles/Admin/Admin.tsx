@@ -3,11 +3,11 @@ import HeaderAdmin from '@/components/HeaderAdmin'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleProtectedRoute from '@/components/RoleProtectedRoute'
 
-import Dashboard from './Admin/Dashboard'
-import Usuarios from './Admin/Usuarios'
-import Citas from './Admin/Citas'
-import Historias from './Admin/Historias'
-import Habitaciones from './Admin/Habitaciones'
+import Dashboard from './Dashboard'
+import Usuarios from './Usuarios'
+import Citas from './Citas'
+import Historias from './Historias'
+import Habitaciones from './Habitaciones'
 
 export default function AdminLayout() {
   return (

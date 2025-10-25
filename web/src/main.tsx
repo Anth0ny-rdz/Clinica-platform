@@ -10,11 +10,11 @@ import RoleProtectedRoute from './components/RoleProtectedRoute'
 // Páginas
 import Login from './pages/Login'
 import Unauthorized from './pages/Unauthorized'
-import Admin from './pages/roles/Admin'
+import Admin from './pages/roles/Admin/Admin'
 import Medico from './pages/roles/Medico'
 import Enfermeria from './pages/roles/Enfermeria'
 import Paciente from './pages/roles/Paciente'
-import Recepcionista from './pages/roles/Recepcionista'
+import Recepcionista from './pages/roles/Recepcionista/Recepcionista'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -39,17 +39,17 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             }
           />
           <Route
-            path="/medico"
+            path="/medico/*"
             element={
               <ProtectedRoute>
-                <RoleProtectedRoute allowedRoles={['Medico']}>
+                <RoleProtectedRoute allowedRoles={['Médico']}>
                   <Medico />
                 </RoleProtectedRoute>
               </ProtectedRoute>
             }
           />
           <Route
-            path="/enfermeria"
+            path="/enfermeria/*"
             element={
               <ProtectedRoute>
                 <RoleProtectedRoute allowedRoles={['Enfermeria']}>
@@ -59,17 +59,17 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             }
           />
           <Route
-            path="/recepcion"
+            path="/recepcionista/*"
             element={
               <ProtectedRoute>
-                <RoleProtectedRoute allowedRoles={['Recepcionista']}>
+                <RoleProtectedRoute allowedRoles={['Recepcionista', 'Recepcionista / Asistente administrativo']}>
                   <Recepcionista />
                 </RoleProtectedRoute>
               </ProtectedRoute>
             }
           />
           <Route
-            path="/paciente"
+            path="/paciente/*"
             element={
               <ProtectedRoute>
                 <RoleProtectedRoute allowedRoles={['Paciente']}>
@@ -78,6 +78,17 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/laboratorio/*"
+            element={
+              <ProtectedRoute>
+                <RoleProtectedRoute allowedRoles={['Laboratorio']}>
+                  <Paciente />
+                </RoleProtectedRoute>
+              </ProtectedRoute>
+            }
+          />
+
         </Routes>
       </AuthProvider>
     </BrowserRouter>
