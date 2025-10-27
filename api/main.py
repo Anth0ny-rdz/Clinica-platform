@@ -6,6 +6,9 @@ import os
 from dotenv import load_dotenv
 from typing import Annotated
 import bcrypt
+from fastapi import Body
+
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
@@ -139,4 +142,55 @@ def create_user(user: UserCreate):
         raise he
     except Exception as e:
         print("❌ Error:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    
+@app.get("/patients")
+def get_all_patients():
+    """
+    Retorna la lista completa de pacientes registrados.
+    """
+    try:
+        query = supabase.table("patients").select("*").order("names").execute()
+        return JSONResponse(content=query.data, status_code=200)
+    except Exception as e:
+        print("❌ Error obteniendo pacientes:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+@app.get("/patients/{cedula}")
+def get_patient_by_cedula(cedula: str):
+    """
+    Busca un paciente por su número de cédula (doc_id).
+    """
+    try:
+        query = supabase.table("patients").select("*").eq("doc_id", cedula).execute()
+        if not query.data:
+            raise HTTPException(status_code=404, detail="Paciente no encontrado.")
+        return JSONResponse(content=query.data[0], status_code=200)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print("❌ Error buscando paciente:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+
+@app.put("/patients/{cedula}")
+def update_patient(cedula: str, data: dict = Body(...)):
+    """
+    Actualiza los campos clínicos o administrativos de un paciente.
+    """
+    try:
+        # Verificar existencia
+        existing = supabase.table("patients").select("doc_id").eq("doc_id", cedula).execute()
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Paciente no encontrado.")
+
+        # Actualizar
+        update_result = supabase.table("patients").update(data).eq("doc_id", cedula).execute()
+        return {"message": "✅ Paciente actualizado correctamente", "updated": update_result.data}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print("❌ Error actualizando paciente:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")

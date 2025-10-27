@@ -5,6 +5,7 @@ import RoleProtectedRoute from '@/components/RoleProtectedRoute'
 
 import Citas from './Citas'
 import Pacientes from './pacientes'
+import DetallePaciente from './DetallePaciente'
 
 export default function MedicoLayout() {
   return (
@@ -16,6 +17,8 @@ export default function MedicoLayout() {
             <Routes>
               <Route path="citas" element={<Citas />} />
               <Route path="pacientes" element={<Pacientes />} />
+              <Route path="pacientes/:doc_id" element={<DetallePaciente />} />
+
             </Routes>
           </main>
         </div>

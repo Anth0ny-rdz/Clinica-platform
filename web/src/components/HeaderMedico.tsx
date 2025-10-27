@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import LogoutButton from '@/components/LogoutButton'
 
-export default function HeaderRecepcionista() {
+export default function HeaderMedico() {
   const { user } = useAuth()
 
   return (
