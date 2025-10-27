@@ -17,7 +17,7 @@ export default function HeaderRecepcionista() {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <h2 style={{ margin: 0 }}>Panel de Recepcionista</h2>
+        <h2 style={{ margin: 0 }}>Panel de Médico</h2>
         {user?.email && (
           <span
             style={{
@@ -35,14 +35,11 @@ export default function HeaderRecepcionista() {
       </div>
 
       <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <Link to="/recepcionista/usuarios" style={{ color: 'white', textDecoration: 'none' }}>
-          Usuarios
-        </Link>
-        <Link to="/recepcionista/citas" style={{ color: 'white', textDecoration: 'none' }}>
+        <Link to="/medico/citas" style={{ color: 'white', textDecoration: 'none' }}>
           Citas
         </Link>
-        <Link to="/recepcionista/habitaciones" style={{ color: 'white', textDecoration: 'none' }}>
-          Habitaciones
+        <Link to="/medico/pacientes" style={{ color: 'white', textDecoration: 'none' }}>
+          Pacientes
         </Link>
 
         {/* Botón de cerrar sesión */}

@@ -1,23 +1,21 @@
 import { Routes, Route } from 'react-router-dom'
-import HeaderAdmin from '@/components/HeaderRecepcionista'
+import HeaderMedico from '@/components/HeaderMedico'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleProtectedRoute from '@/components/RoleProtectedRoute'
 
-import Usuarios from './Usuarios'
 import Citas from './Citas'
-import Habitaciones from './Habitaciones'
+import Pacientes from './pacientes'
 
-export default function RecepcionistaLayout() {
+export default function MedicoLayout() {
   return (
-    <ProtectedRoute>
-      <RoleProtectedRoute allowedRoles={['Recepcionista / Asistente administrativo']}>
+      <ProtectedRoute>
+      <RoleProtectedRoute allowedRoles={['Médico']}>
         <div>
-          <HeaderAdmin />
+          <HeaderMedico />
           <main style={{ padding: '2rem' }}>
             <Routes>
-              <Route path="usuarios" element={<Usuarios />} />
               <Route path="citas" element={<Citas />} />
-              <Route path="habitaciones" element={<Habitaciones />} />
+              <Route path="pacientes" element={<Pacientes />} />
             </Routes>
           </main>
         </div>
