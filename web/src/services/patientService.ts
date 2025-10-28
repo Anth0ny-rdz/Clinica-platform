@@ -30,3 +30,4 @@ export async function updatePatient(cedula: string, updates: Record<string, any>
   }
   return await res.json()
 }
+

@@ -36,3 +36,10 @@ export async function createUser(newUser: NewUserData) {
   }
   return await response.json()
 }
+
+
+export async function fetchDoctorProfileId(auth_id: string) {
+  const response = await fetch(`http://127.0.0.1:8000/doctor/${auth_id}`)
+  if (!response.ok) throw new Error('No se encontró el perfil del médico')
+  return await response.json()
+}

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from typing import Annotated
 import bcrypt
 from fastapi import Body
+from datetime import datetime
 
 from fastapi.responses import JSONResponse
 
@@ -193,4 +194,210 @@ def update_patient(cedula: str, data: dict = Body(...)):
         raise he
     except Exception as e:
         print("❌ Error actualizando paciente:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    
+
+@app.post("/encounters")
+def create_encounter(data: dict):
+    """
+    Crea una nueva historia médica (encounter) junto a signos vitales vinculados.
+    """
+    try:
+        print("📥 Datos recibidos:", data)
+
+        # 1️⃣ Crear la historia sin vital_sign_id aún
+        encounter_data = {
+            "patient_id": int(data["patient_id"]),
+            "doctor_profile_id": int(data["doctor_profile_id"]),
+            "reason_for_consultation": data.get("reason_for_consultation"),
+            "main_symptoms": data.get("main_symptoms"),
+            "secondary_symptoms": data.get("secondary_symptoms"),
+            "treatment": data.get("treatment"),
+            "observations": data.get("observations"),
+            "date": datetime.now().date().isoformat(),
+            "hour": datetime.now().time().strftime("%H:%M:%S"),
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
+
+        result_encounter = supabase.table("encounters").insert(encounter_data).execute()
+
+        if not result_encounter.data:
+            raise HTTPException(status_code=400, detail="Error creando historia médica.")
+
+        encounter_id = result_encounter.data[0]["encounter_id"]
+
+        # 2️⃣ Si se mandan signos vitales, crearlos y vincularlos
+        vitals_data = data.get("vitals")
+        if vitals_data:
+            vital_record = {
+                "encounter_id": encounter_id,
+                "fecha": datetime.now().date().isoformat(),
+                "presion_arterial": vitals_data.get("presion_arterial"),
+                "pulso_xmin": vitals_data.get("pulso_xmin"),
+                "temperatura": vitals_data.get("temperatura"),
+            }
+
+            result_vital = supabase.table("signus_vitalis").insert(vital_record).execute()
+
+            if not result_vital.data:
+                raise HTTPException(status_code=400, detail="Error creando signos vitales.")
+
+            vital_sign_id = result_vital.data[0]["vital_sign_id"]
+
+            # 3️⃣ Actualizar la historia con la FK de signos vitales
+            supabase.table("encounters").update({"vital_sign_id": vital_sign_id}).eq("encounter_id", encounter_id).execute()
+
+        return {"message": "✅ Historia y signos vitales creados correctamente", "encounter_id": encounter_id}
+
+    except Exception as e:
+        print("❌ Error creando historia médica:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+@app.post("/vital_signs")
+def create_vital_signs(data: dict):
+    """
+    Crea los signos vitales asociados a una historia
+    """
+    try:
+        vital_data = {
+            "encounter_id": int(data["encounter_id"]),
+            "fecha": datetime.now().date().isoformat(),
+            "presion_arterial": data.get("presion_arterial"),
+            "pulso_xmin": data.get("pulso_xmin"),
+            "temperatura": data.get("temperatura"),
+        }
+        result = supabase.table("signus_vitalis").insert(vital_data).execute()
+        return result.data[0]
+    except Exception as e:
+        print("❌ Error creando signos vitales:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    
+@app.get("/doctor/{auth_id}")
+def get_doctor_profile(auth_id: str):
+    """
+    Devuelve el user_profile_id del médico logueado
+    """
+    try:
+        query = (
+            supabase.table("user_profile")
+            .select("user_profile_id")
+            .eq("auth_id", auth_id)
+            .execute()
+        )
+        if not query.data:
+            raise HTTPException(status_code=404, detail="Perfil no encontrado")
+        return query.data[0]
+    except Exception as e:
+        print("❌ Error obteniendo perfil del médico:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+@app.get("/encounters/{patient_id}")
+def get_encounters_by_patient(patient_id: int):
+    """
+    Devuelve todas las historias médicas asociadas a un paciente.
+    Incluye datos básicos del médico y de los signos vitales si existen.
+    """
+    try:
+        # Consultar todas las historias del paciente
+        encounters = (
+            supabase.table("encounters")
+            .select(
+                "encounter_id, date, hour, reason_for_consultation, main_symptoms, treatment, observations, doctor_profile_id, vital_sign_id"
+            )
+            .eq("patient_id", patient_id)
+            .order("date", desc=True)
+            .execute()
+        )
+
+        if not encounters.data:
+            return []
+
+        # 🔹 Si cada historia tiene un doctor_profile_id, obtener sus nombres
+        doctors_cache = {}
+        for e in encounters.data:
+            doc_id = e.get("doctor_profile_id")
+            if doc_id and doc_id not in doctors_cache:
+                doctor = (
+                    supabase.table("user_profile")
+                    .select("name, lastname")
+                    .eq("user_profile_id", doc_id)
+                    .execute()
+                )
+                if doctor.data:
+                    doctors_cache[doc_id] = f"{doctor.data[0]['name']} {doctor.data[0]['lastname']}"
+                else:
+                    doctors_cache[doc_id] = "Desconocido"
+            e["doctor_name"] = doctors_cache.get(doc_id, "Desconocido")
+
+        # 🔹 Si tiene vital_sign_id, traer signos vitales
+        for e in encounters.data:
+            vital_id = e.get("vital_sign_id")
+            if vital_id:
+                vitals = (
+                    supabase.table("signus_vitalis")
+                    .select("presion_arterial, pulso_xmin, temperatura, fecha")
+                    .eq("vital_sign_id", vital_id)
+                    .execute()
+                )
+                if vitals.data:
+                    e["vitals"] = vitals.data[0]
+
+        return encounters.data
+
+    except Exception as e:
+        print("❌ Error al obtener historias:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    
+@app.get("/encounters/detail/{encounter_id}")
+def get_encounter_detail(encounter_id: int):
+    """
+    Devuelve el detalle completo de una historia médica específica (encounter),
+    incluyendo los signos vitales y la información del médico.
+    """
+    try:
+        # Obtener la historia
+        encounter = (
+            supabase.table("encounters")
+            .select(
+                "encounter_id, date, hour, reason_for_consultation, main_symptoms, secondary_symptoms, "
+                "treatment, observations, doctor_profile_id, vital_sign_id"
+            )
+            .eq("encounter_id", encounter_id)
+            .single()
+            .execute()
+        )
+
+        if not encounter.data:
+            raise HTTPException(status_code=404, detail="Historia no encontrada")
+
+        data = encounter.data
+
+        # 🔹 Obtener datos del médico
+        doctor = (
+            supabase.table("user_profile")
+            .select("name, lastname")
+            .eq("user_profile_id", data["doctor_profile_id"])
+            .execute()
+        )
+        if doctor.data:
+            data["doctor_name"] = f"{doctor.data[0]['name']} {doctor.data[0]['lastname']}"
+        else:
+            data["doctor_name"] = "Desconocido"
+
+        # 🔹 Obtener signos vitales
+        if data.get("vital_sign_id"):
+            vitals = (
+                supabase.table("signus_vitalis")
+                .select("presion_arterial, pulso_xmin, temperatura, fecha")
+                .eq("vital_sign_id", data["vital_sign_id"])
+                .execute()
+            )
+            if vitals.data:
+                data["vitals"] = vitals.data[0]
+
+        return data
+
+    except Exception as e:
+        print("❌ Error al obtener detalle de historia:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
