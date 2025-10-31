@@ -66,11 +66,19 @@ export default function DetalleHistoria() {
       </div>
 
       {/* Contenido a exportar */}
-      <div ref={pdfRef} style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '1rem', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
+      <div
+        ref={pdfRef}
+        style={{
+          backgroundColor: 'white',
+          padding: '2rem',
+          borderRadius: '1rem',
+          boxShadow: '0 0 10px rgba(0,0,0,0.1)',
+        }}
+      >
         <h2 style={{ textAlign: 'center' }}>Historia Médica</h2>
         <p><strong>Fecha:</strong> {encounter.date}</p>
         <p><strong>Hora:</strong> {encounter.hour}</p>
-        <p><strong>Médico tratante:</strong> {encounter.doctor_name}</p>
+        <p><strong>Médico tratante:</strong> {encounter.doctor_name || '—'}</p>
 
         <hr style={{ margin: '1rem 0' }} />
 
@@ -83,20 +91,32 @@ export default function DetalleHistoria() {
         <h3>Síntomas Secundarios</h3>
         <p>{encounter.secondary_symptoms || '—'}</p>
 
+        {/*  Revisión de órganos y sistemas */}
+        <h3>Revisión de Órganos y Sistemas</h3>
+        <p>{encounter.revision_organos || '—'}</p>
+
+        {/*  Diagnóstico */}
+        <h3>Diagnóstico</h3>
+        <p>{encounter.diagnostico || '—'}</p>
+
         <h3>Tratamiento</h3>
         <p>{encounter.treatment || '—'}</p>
 
         <h3>Observaciones</h3>
         <p>{encounter.observations || '—'}</p>
 
+        {/*  Próxima fecha de control */}
+        <h3>Próxima Fecha de Control</h3>
+        <p>{encounter.fecha_para_control || '—'}</p>
+
         <hr style={{ margin: '1rem 0' }} />
 
-        <h3>❤️ Signos Vitales</h3>
+        <h3> Signos Vitales</h3>
         {encounter.vitals ? (
           <ul>
-            <li><strong>Presión arterial:</strong> {encounter.vitals.presion_arterial}</li>
-            <li><strong>Pulso:</strong> {encounter.vitals.pulso_xmin}</li>
-            <li><strong>Temperatura:</strong> {encounter.vitals.temperatura} °C</li>
+            <li><strong>Presión arterial:</strong> {encounter.vitals.presion_arterial || '—'}</li>
+            <li><strong>Pulso:</strong> {encounter.vitals.pulso_xmin || '—'}</li>
+            <li><strong>Temperatura:</strong> {encounter.vitals.temperatura ? `${encounter.vitals.temperatura} °C` : '—'}</li>
           </ul>
         ) : (
           <p>No se registraron signos vitales.</p>

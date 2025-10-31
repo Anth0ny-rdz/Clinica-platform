@@ -62,16 +62,16 @@ class UserCreate(BaseModel):
 @app.post("/create_user")
 def create_user(user: UserCreate):
     try:
-        # ✅ Validar cédula
+        #  Validar cédula
         if not validar_cedula_ecuador(user.id_number):
             raise HTTPException(status_code=400, detail="❌ Cédula ecuatoriana no válida.")
 
-        # 🔍 Verificar duplicado
+        #  Verificar duplicado
         existente = supabase.table("user_profile").select("id_number").eq("id_number", user.id_number).execute()
         if existente.data:
             raise HTTPException(status_code=400, detail="⚠️ Esta cédula ya está registrada.")
 
-        # 1️⃣ Crear usuario en Auth
+        # Crear usuario en Auth
         auth_resp = supabase.auth.admin.create_user({
             "email": user.email,
             "password": user.password,
@@ -83,7 +83,7 @@ def create_user(user: UserCreate):
 
         auth_id = auth_user.id
 
-        # 2️⃣ Insertar en users
+        #  Insertar en users
         password_hash = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         user_data = {
             "username": user.email.split("@")[0],
@@ -96,7 +96,7 @@ def create_user(user: UserCreate):
         user_insert = supabase.table("users").insert(user_data).execute()
         user_id = user_insert.data[0]["userid"] if user_insert.data else None
 
-        # 3️⃣ Insertar en user_profile
+        # Insertar en user_profile
         profile_data = {
             "auth_id": auth_id,
             "user_id": user_id,
@@ -110,7 +110,7 @@ def create_user(user: UserCreate):
         }
         profile_insert = supabase.table("user_profile").insert(profile_data).execute()
 
-        # 4️⃣ Si es paciente, insertar en patients
+        #  Si es paciente, insertar en patients
         if user.rol_id == 6:  # Paciente
             patient_data = {
                 "doc_id": user.id_number,  # cédula
@@ -203,9 +203,9 @@ def create_encounter(data: dict):
     Crea una nueva historia médica (encounter) junto a signos vitales vinculados.
     """
     try:
-        print("📥 Datos recibidos:", data)
+        print(" Datos recibidos:", data)
 
-        # 1️⃣ Crear la historia sin vital_sign_id aún
+        #  Crear la historia sin vital_sign_id aún
         encounter_data = {
             "patient_id": int(data["patient_id"]),
             "doctor_profile_id": int(data["doctor_profile_id"]),
@@ -214,6 +214,13 @@ def create_encounter(data: dict):
             "secondary_symptoms": data.get("secondary_symptoms"),
             "treatment": data.get("treatment"),
             "observations": data.get("observations"),
+
+            # 🩺 Campos clínicos nuevos
+            "diagnostico": data.get("diagnostico"),
+            "revision_organos": data.get("revision_organos"),
+            "fecha_para_control": data.get("fecha_para_control"),
+
+            #  Metadatos automáticos
             "date": datetime.now().date().isoformat(),
             "hour": datetime.now().time().strftime("%H:%M:%S"),
             "created_at": datetime.now().isoformat(),
@@ -227,7 +234,7 @@ def create_encounter(data: dict):
 
         encounter_id = result_encounter.data[0]["encounter_id"]
 
-        # 2️⃣ Si se mandan signos vitales, crearlos y vincularlos
+        # Si se mandan signos vitales, crearlos y vincularlos
         vitals_data = data.get("vitals")
         if vitals_data:
             vital_record = {
@@ -245,7 +252,7 @@ def create_encounter(data: dict):
 
             vital_sign_id = result_vital.data[0]["vital_sign_id"]
 
-            # 3️⃣ Actualizar la historia con la FK de signos vitales
+            #  Actualizar la historia con la FK de signos vitales
             supabase.table("encounters").update({"vital_sign_id": vital_sign_id}).eq("encounter_id", encounter_id).execute()
 
         return {"message": "✅ Historia y signos vitales creados correctamente", "encounter_id": encounter_id}
@@ -253,6 +260,7 @@ def create_encounter(data: dict):
     except Exception as e:
         print("❌ Error creando historia médica:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
 
 @app.post("/vital_signs")
 def create_vital_signs(data: dict):
@@ -313,7 +321,7 @@ def get_encounters_by_patient(patient_id: int):
         if not encounters.data:
             return []
 
-        # 🔹 Si cada historia tiene un doctor_profile_id, obtener sus nombres
+        #  Si cada historia tiene un doctor_profile_id, obtener sus nombres
         doctors_cache = {}
         for e in encounters.data:
             doc_id = e.get("doctor_profile_id")
@@ -330,7 +338,7 @@ def get_encounters_by_patient(patient_id: int):
                     doctors_cache[doc_id] = "Desconocido"
             e["doctor_name"] = doctors_cache.get(doc_id, "Desconocido")
 
-        # 🔹 Si tiene vital_sign_id, traer signos vitales
+        #  Si tiene vital_sign_id, traer signos vitales
         for e in encounters.data:
             vital_id = e.get("vital_sign_id")
             if vital_id:
@@ -353,15 +361,17 @@ def get_encounters_by_patient(patient_id: int):
 def get_encounter_detail(encounter_id: int):
     """
     Devuelve el detalle completo de una historia médica específica (encounter),
-    incluyendo los signos vitales y la información del médico.
+    incluyendo diagnóstico, revisión de órganos, próxima fecha de control,
+    signos vitales y la información del médico tratante.
     """
     try:
-        # Obtener la historia
+        #  Obtener todos los campos, incluyendo los nuevos
         encounter = (
             supabase.table("encounters")
             .select(
                 "encounter_id, date, hour, reason_for_consultation, main_symptoms, secondary_symptoms, "
-                "treatment, observations, doctor_profile_id, vital_sign_id"
+                "revision_organos, diagnostico, treatment, observations, fecha_para_control, "
+                "doctor_profile_id, vital_sign_id"
             )
             .eq("encounter_id", encounter_id)
             .single()
@@ -373,7 +383,7 @@ def get_encounter_detail(encounter_id: int):
 
         data = encounter.data
 
-        # 🔹 Obtener datos del médico
+        #  Obtener nombre del médico tratante
         doctor = (
             supabase.table("user_profile")
             .select("name, lastname")
@@ -385,7 +395,7 @@ def get_encounter_detail(encounter_id: int):
         else:
             data["doctor_name"] = "Desconocido"
 
-        # 🔹 Obtener signos vitales
+        #  Obtener signos vitales si existen
         if data.get("vital_sign_id"):
             vitals = (
                 supabase.table("signus_vitalis")
@@ -395,6 +405,10 @@ def get_encounter_detail(encounter_id: int):
             )
             if vitals.data:
                 data["vitals"] = vitals.data[0]
+            else:
+                data["vitals"] = None
+        else:
+            data["vitals"] = None
 
         return data
 

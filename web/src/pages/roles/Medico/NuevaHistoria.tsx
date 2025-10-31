@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { createEncounter, createVitalSigns } from '@/services/encounterService'
+import { createEncounter } from '@/services/encounterService'
 import { fetchDoctorProfileId } from '@/services/userService'
 
 export default function NuevaHistoria() {
   const { patient_id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()  // 👈 obtiene el médico logueado
+  const { user } = useAuth()
   const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -20,14 +20,19 @@ export default function NuevaHistoria() {
     loadDoctor()
   }, [user])
 
+  // 🩺 Campos de historia médica
   const [form, setForm] = useState({
     reason_for_consultation: '',
     main_symptoms: '',
     secondary_symptoms: '',
+    revision_organos: '',
+    diagnostico: '',
     treatment: '',
     observations: '',
+    fecha_para_control: '',
   })
 
+  // ❤️ Signos vitales
   const [vitals, setVitals] = useState({
     presion_arterial: '',
     pulso_xmin: '',
@@ -37,50 +42,57 @@ export default function NuevaHistoria() {
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // 🔹 Manejo de cambios en campos de texto
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
+  // 🔹 Manejo de cambios en signos vitales
   const handleVitalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setVitals((prev) => ({ ...prev, [name]: value }))
   }
 
-    const handleSubmit = async (e: React.FormEvent) => {
+  // 🔹 Enviar formulario completo
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-        setLoading(true)
-        setMessage(null)
+      setLoading(true)
+      setMessage(null)
 
-        if (!patient_id || !doctorProfileId) {
+      if (!patient_id || !doctorProfileId) {
         throw new Error('No se encontró el ID del paciente o del médico.')
-        }
+      }
 
-        const dataToSend = {
+      const dataToSend = {
         patient_id: parseInt(patient_id),
         doctor_profile_id: doctorProfileId,
         ...form,
-        vitals, // 👈 Enviar signos vitales dentro del mismo objeto
-        }
+        vitals, // incluye los signos vitales dentro del mismo JSON
+      }
 
-        await createEncounter(dataToSend)
+      await createEncounter(dataToSend)
 
-        setMessage('✅ Historia médica y signos vitales registrados correctamente.')
-        setForm({
+      setMessage('✅ Historia médica y signos vitales registrados correctamente.')
+      setForm({
         reason_for_consultation: '',
         main_symptoms: '',
         secondary_symptoms: '',
+        revision_organos: '',
+        diagnostico: '',
         treatment: '',
         observations: '',
-        })
-        setVitals({ presion_arterial: '', pulso_xmin: '', temperatura: '' })
+        fecha_para_control: '',
+      })
+      setVitals({ presion_arterial: '', pulso_xmin: '', temperatura: '' })
     } catch (err: any) {
-        setMessage('❌ Error al guardar historia: ' + err.message)
+      setMessage('❌ Error al guardar historia: ' + err.message)
     } finally {
-        setLoading(false)
+      setLoading(false)
     }
-    }
+  }
+
   return (
     <div style={{ maxWidth: 800, margin: '2rem auto' }}>
       <button onClick={() => navigate(-1)} style={{ marginBottom: '1rem' }}>← Volver</button>
@@ -93,8 +105,17 @@ export default function NuevaHistoria() {
           <textarea name="reason_for_consultation" placeholder="Motivo de consulta" value={form.reason_for_consultation} onChange={handleChange} required />
           <textarea name="main_symptoms" placeholder="Síntomas principales" value={form.main_symptoms} onChange={handleChange} required />
           <textarea name="secondary_symptoms" placeholder="Síntomas secundarios" value={form.secondary_symptoms} onChange={handleChange} />
+
+          <textarea name="revision_organos" placeholder="Revisión de órganos y sistemas" value={form.revision_organos} onChange={handleChange} />
+          <textarea name="diagnostico" placeholder="Diagnóstico" value={form.diagnostico} onChange={handleChange} />
+
           <textarea name="treatment" placeholder="Tratamiento" value={form.treatment} onChange={handleChange} />
           <textarea name="observations" placeholder="Observaciones" value={form.observations} onChange={handleChange} />
+
+          <div>
+            <label>📅 Próxima fecha de control:</label>
+            <input type="date" name="fecha_para_control" value={form.fecha_para_control} onChange={handleChange} />
+          </div>
 
           <h3>❤️ Signos Vitales</h3>
           <input name="presion_arterial" placeholder="Presión arterial (mmHg)" value={vitals.presion_arterial} onChange={handleVitalChange} />
