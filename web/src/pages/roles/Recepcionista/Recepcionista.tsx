@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import HeaderAdmin from '@/components/HeaderRecepcionista'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleProtectedRoute from '@/components/RoleProtectedRoute'
+import CitasRecepcionista from './CitasRecepcionista'
 
 import Usuarios from './Usuarios'
 import Citas from './Citas'
@@ -16,8 +17,9 @@ export default function RecepcionistaLayout() {
           <main style={{ padding: '2rem' }}>
             <Routes>
               <Route path="usuarios" element={<Usuarios />} />
-              <Route path="citas" element={<Citas />} />
               <Route path="habitaciones" element={<Habitaciones />} />
+              <Route path="citas" element={<CitasRecepcionista />} />
+
             </Routes>
           </main>
         </div>

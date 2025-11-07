@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from typing import Annotated
 import bcrypt
 from fastapi import Body
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi.responses import JSONResponse
 
@@ -414,4 +414,349 @@ def get_encounter_detail(encounter_id: int):
 
     except Exception as e:
         print("❌ Error al obtener detalle de historia:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+@app.post("/appointments")
+def create_appointment(data: dict):
+    """
+    Crea una nueva cita verificando disponibilidad del médico.
+    """
+    try:
+        patient_id = int(data["patient_id"])
+        doctor_profile_id = int(data["doctor_profile_id"])
+        created_by = int(data["created_by"])
+        date = data["date"]
+        time = data["time"]
+        reason = data.get("reason", "")
+
+        # 🔍 Verificar si ya existe una cita del mismo médico en la misma fecha y hora
+        existing = (
+            supabase.table("appointments")
+            .select("appointment_id")
+            .eq("doctor_profile_id", doctor_profile_id)
+            .eq("date", date)
+            .eq("time", time)
+            .execute()
+        )
+
+        if existing.data:
+            raise HTTPException(
+                status_code=400,
+                detail="⚠️ El médico ya tiene una cita programada en esa fecha y hora."
+            )
+
+        # ✅ Crear la nueva cita
+        appointment_data = {
+            "patient_id": patient_id,
+            "doctor_profile_id": doctor_profile_id,
+            "created_by": created_by,
+            "date": date,
+            "time": time,
+            "reason": reason,
+            "status": "Pendiente",
+            "created_at": datetime.now().isoformat(),
+        }
+
+        result = supabase.table("appointments").insert(appointment_data).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=400, detail="Error creando cita médica.")
+
+        return {"message": "✅ Cita creada correctamente", "appointment_id": result.data[0]["appointment_id"]}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print("❌ Error creando cita:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+# 📋 Obtener todas las citas (vista recepcionista)
+@app.get("/appointments")
+def get_all_appointments():
+    """
+    Devuelve todas las citas con nombres de paciente y médico
+    combinando datos desde las tablas patients, user_profile y users.
+    """
+    try:
+        # 1️⃣ Obtener todas las citas
+        result = (
+            supabase.table("appointments")
+            .select("appointment_id, patient_id, doctor_profile_id, date, time, reason, status, created_by")
+            .order("date", desc=True)
+            .execute()
+        )
+
+        if not result.data:
+            return []
+
+        appointments = result.data
+
+        # 2️⃣ Obtener todos los IDs de pacientes y médicos
+        patient_ids = [a["patient_id"] for a in appointments if a.get("patient_id")]
+        doctor_ids = [a["doctor_profile_id"] for a in appointments if a.get("doctor_profile_id")]
+
+        # 3️⃣ Traer pacientes
+        patients_data = {}
+        if patient_ids:
+            patients_result = (
+                supabase.table("patients")
+                .select("patient_id, names, lastname, email, telephone")
+                .in_("patient_id", patient_ids)
+                .execute()
+            )
+            if patients_result.data:
+                patients_data = {p["patient_id"]: p for p in patients_result.data}
+
+        # 4️⃣ Traer perfiles de médicos
+        doctors_data = {}
+        user_ids = []
+        if doctor_ids:
+            doctors_result = (
+                supabase.table("user_profile")
+                .select("user_profile_id, name, lastname, telephone, user_id")
+                .in_("user_profile_id", doctor_ids)
+                .execute()
+            )
+            if doctors_result.data:
+                doctors_data = {d["user_profile_id"]: d for d in doctors_result.data}
+                user_ids = [d["user_id"] for d in doctors_result.data if d.get("user_id")]
+
+        # 5️⃣ Traer correos de médicos desde users
+        doctor_emails = {}
+        if user_ids:
+            users_result = (
+                supabase.table("users")
+                .select("userid, email")
+                .in_("userid", user_ids)
+                .execute()
+            )
+            if users_result.data:
+                doctor_emails = {u["userid"]: u["email"] for u in users_result.data}
+
+        # 6️⃣ Armar resultado final
+        final_list = []
+        for a in appointments:
+            patient_info = patients_data.get(a["patient_id"], {})
+            doctor_info = doctors_data.get(a["doctor_profile_id"], {})
+            email_doc = doctor_emails.get(doctor_info.get("user_id"), "—")
+
+            final_list.append({
+                "appointment_id": a["appointment_id"],
+                "date": a["date"],
+                "time": a["time"],
+                "reason": a.get("reason"),
+                "status": a.get("status", "Pendiente"),
+                "patient_name": f"{patient_info.get('names', '—')} {patient_info.get('lastname', '')}".strip(),
+                "patient_email": patient_info.get("email", "—"),
+                "doctor_name": f"{doctor_info.get('name', '—')} {doctor_info.get('lastname', '')}".strip(),
+                "doctor_email": email_doc,
+            })
+
+        return final_list
+
+    except Exception as e:
+        print("❌ Error obteniendo citas:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error obteniendo citas: {str(e)}")
+
+# 👨‍⚕️ Obtener citas por médico (vista del médico)
+@app.get("/appointments/doctor/{doctor_id}")
+def get_appointments_by_doctor(doctor_id: int):
+    try:
+        result = (
+            supabase.table("appointments")
+            .select("appointment_id, date, time, reason, status, patient_id")
+            .eq("doctor_profile_id", doctor_id)
+            .order("date", desc=False)
+            .execute()
+        )
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo citas del médico: {str(e)}")
+
+
+# 🔄 Actualizar estado de cita
+@app.put("/appointments/{appointment_id}")
+def update_appointment_status(appointment_id: int, data: dict):
+    try:
+        updates = {
+            "status": data.get("status", "pendiente"),
+            "updated_at": datetime.now().isoformat(),
+        }
+        supabase.table("appointments").update(updates).eq("appointment_id", appointment_id).execute()
+        return {"message": "✅ Cita actualizada correctamente"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error actualizando cita: {str(e)}")
+    
+@app.get("/patients/by-cedula/{doc_id}")
+def get_patient_by_cedula(doc_id: str):
+    try:
+        result = (
+            supabase.table("patients")
+            .select("patient_id, names, lastname, email, telephone, doc_id")
+            .eq("doc_id", doc_id)
+            .single()
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Paciente no encontrado.")
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al buscar paciente: {str(e)}")
+
+
+@app.get("/doctors")
+def get_all_doctors():
+    """
+    Devuelve la lista de médicos (rol_id = 2) incluyendo su correo
+    desde la tabla 'users', enlazando por user_profile.user_id = users.userid.
+    """
+    try:
+        # 1️⃣ Obtener todos los perfiles de médicos
+        doctors = (
+            supabase.table("user_profile")
+            .select("user_profile_id, name, lastname, telephone, user_id")
+            .eq("rol_id", 2)
+            .order("lastname", desc=False)
+            .execute()
+        )
+
+        if not doctors.data:
+            return []
+
+        # 2️⃣ Obtener todos los user_id de esos médicos
+        user_ids = [d["user_id"] for d in doctors.data if d.get("user_id")]
+
+        # 3️⃣ Obtener los correos desde la tabla 'users'
+        emails = {}
+        if user_ids:
+            users_data = (
+                supabase.table("users")
+                .select("userid, email")
+                .in_("userid", user_ids)
+                .execute()
+            )
+            if users_data.data:
+                emails = {u["userid"]: u["email"] for u in users_data.data}
+
+        # 4️⃣ Combinar ambos resultados
+        doctors_with_email = []
+        for d in doctors.data:
+            doctors_with_email.append({
+                "user_profile_id": d["user_profile_id"],
+                "name": d["name"],
+                "lastname": d["lastname"],
+                "telephone": d.get("telephone"),
+                "email": emails.get(d["user_id"], "—")
+            })
+
+        return doctors_with_email
+
+    except Exception as e:
+        print("❌ Error obteniendo médicos:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error obteniendo médicos: {str(e)}")
+
+@app.get("/user_profile/{auth_id}")
+def get_user_profile_by_auth(auth_id: str):
+    """
+    Retorna el perfil del usuario (recepcionista, médico, etc.)
+    a partir de su auth_id.
+    """
+    try:
+        result = (
+            supabase.table("user_profile")
+            .select("user_profile_id, name, lastname, rol_id")
+            .eq("auth_id", auth_id)
+            .single()
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Perfil no encontrado")
+        return result.data
+    except Exception as e:
+        print("❌ Error obteniendo perfil:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error obteniendo perfil: {str(e)}")
+
+
+@app.get("/appointments/calendar")
+def get_appointments_calendar():
+    """
+    Devuelve todas las citas con la información del paciente y médico (para el calendario).
+    Cada evento incluye fecha, hora, nombres, estado y cédula (doc_id) del paciente.
+    """
+    try:
+        # 1️⃣ Obtener todas las citas ordenadas por fecha
+        appointments = (
+            supabase.table("appointments")
+            .select("appointment_id, date, time, reason, status, patient_id, doctor_profile_id")
+            .order("date", desc=False)
+            .execute()
+        )
+
+        if not appointments.data:
+            return []
+
+        events = []
+
+        # 2️⃣ Procesar cada cita
+        for a in appointments.data:
+            # 🔹 Buscar datos del paciente
+            patient = (
+                supabase.table("patients")
+                .select("names, lastname, doc_id")
+                .eq("patient_id", a["patient_id"])
+                .execute()
+            )
+
+            patient_name = (
+                f"{patient.data[0]['names']} {patient.data[0]['lastname']}"
+                if patient.data else "Paciente desconocido"
+            )
+            patient_doc = patient.data[0]["doc_id"] if patient.data else None
+
+            # 🔹 Buscar datos del médico
+            doctor = (
+                supabase.table("user_profile")
+                .select("name, lastname")
+                .eq("user_profile_id", a["doctor_profile_id"])
+                .execute()
+            )
+
+            doctor_name = (
+                f"{doctor.data[0]['name']} {doctor.data[0]['lastname']}"
+                if doctor.data else "Médico no asignado"
+            )
+
+            # 🔹 Limpiar la hora y construir un formato ISO válido
+            date_str = str(a["date"]).split("T")[0]  # solo la fecha
+            time_str = str(a["time"]).split("T")[-1].split(".")[0]  # limpia posibles errores
+            if len(time_str) == 5:  # ej: "16:30"
+                time_str += ":00"
+
+            start_datetime = f"{date_str}T{time_str}"
+
+            # 🔹 Calcular hora final (+30 minutos)
+            try:
+                start_dt = datetime.fromisoformat(start_datetime)
+                end_dt = start_dt + timedelta(minutes=30)
+                end_datetime = end_dt.isoformat()
+            except Exception:
+                end_datetime = start_datetime  # fallback si algo sale mal
+
+            # 🔹 Crear evento compatible con FullCalendar
+            events.append({
+                "id": a["appointment_id"],
+                "title": f"{patient_name} ({doctor_name})",
+                "start": start_datetime,
+                "end": end_datetime,
+                "status": a.get("status", "Pendiente"),
+                "reason": a.get("reason", ""),
+                "patient_id": a["patient_id"],
+                "doc_id": patient_doc,
+            })
+
+        return events
+
+    except Exception as e:
+        print("❌ Error obteniendo citas para calendario:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")

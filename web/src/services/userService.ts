@@ -1,4 +1,5 @@
 import { supabase } from '@/services/supabaseClient'
+const API_URL = 'http://127.0.0.1:8000'
 
 export interface Role {
   roleid: number
@@ -39,7 +40,22 @@ export async function createUser(newUser: NewUserData) {
 
 
 export async function fetchDoctorProfileId(auth_id: string) {
-  const response = await fetch(`http://127.0.0.1:8000/doctor/${auth_id}`)
+  const response = await fetch(`${API_URL}/doctor/${auth_id}`)
   if (!response.ok) throw new Error('No se encontró el perfil del médico')
+  return await response.json()
+}
+
+
+export async function fetchDoctors() {
+  const res = await fetch(`${API_URL}/doctors`)
+  if (!res.ok) throw new Error('Error al obtener médicos')
+  return res.json()
+}
+
+export async function fetchUserProfileId(auth_id: string) {
+  const response = await fetch(`http://127.0.0.1:8000/user_profile/${auth_id}`)
+  if (!response.ok) {
+    throw new Error(`Error obteniendo perfil: ${response.statusText}`)
+  }
   return await response.json()
 }

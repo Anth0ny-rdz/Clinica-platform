@@ -24,7 +24,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
-    /* 👇 AÑADE ESTAS DOS LÍNEAS 👇 */
+    /* 👇 Alias para imports */
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
