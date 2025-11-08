@@ -109,7 +109,7 @@ export default function CalendarioCitas() {
     >
       {/* 📅 Calendario principal */}
       <div style={{ flex: 3 }}>
-        <h2 className="text-center text-2xl font-semibold mb-4">🗓️ Agenda de Citas</h2>
+        <h2 className="text-center text-2xl font-semibold mb-4"> Agenda de Citas</h2>
 
         {message && (
           <p style={{ color: message.startsWith('✅') ? 'green' : 'red', textAlign: 'center' }}>
@@ -169,7 +169,7 @@ export default function CalendarioCitas() {
           {selectedEvent ? (
             <>
               <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-semibold">📋 Detalle de la Cita</h3>
+                <h3 className="text-lg font-semibold"> Detalle de la Cita</h3>
                 <button
                   onClick={handleClosePanel}
                   className="text-gray-600 hover:text-gray-900 text-2xl leading-none"
@@ -209,7 +209,7 @@ export default function CalendarioCitas() {
                     }
                   }}
                 >
-                  👤 Ver perfil del paciente
+                   Ver perfil del paciente
                 </button>
 
               </div>

@@ -41,7 +41,9 @@ export default function HeaderMedico() {
         <Link to="/medico/pacientes" style={{ color: 'white', textDecoration: 'none' }}>
           Pacientes
         </Link>
-        <Link to="/medico/calendario">Calendario</Link>
+        <Link to="/medico/calendario" style={{ color: 'white', textDecoration: 'none' }}>
+          Calendario
+        </Link>
       
 
 

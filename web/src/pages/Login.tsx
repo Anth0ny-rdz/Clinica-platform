@@ -25,7 +25,6 @@ export default function Login() {
         return
       }
 
-      // ✅ Redirección modular según rol
       switch (authUser.rol) {
         case 'Administrador':
           navigate('/admin')
@@ -55,30 +54,62 @@ export default function Login() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '3rem auto', textAlign: 'center' }}>
-      <h1>Iniciar sesión</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-md">
+        <h1 className="text-3xl font-bold text-center text-gray-800 mb-6">
+          🩺 Iniciar sesión
+        </h1>
 
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Correo electrónico"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Ingresando...' : 'Entrar'}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-600 mb-1">
+              Correo electrónico
+            </label>
+            <input
+              type="email"
+              placeholder="ejemplo@correo.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
 
-      {error && <p style={{ color: 'red', marginTop: '1rem' }}>{error}</p>}
+          <div>
+            <label className="block text-sm font-semibold text-gray-600 mb-1">
+              Contraseña
+            </label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={`w-full py-2 rounded-lg text-white font-semibold transition-colors ${
+              loading
+                ? 'bg-blue-300 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {loading ? 'Ingresando...' : 'Entrar'}
+          </button>
+        </form>
+
+        {error && (
+          <p className="text-red-600 text-sm mt-4 text-center">{error}</p>
+        )}
+
+        <p className="text-center text-gray-500 text-sm mt-6">
+          Clínica Latacunga © {new Date().getFullYear()}
+        </p>
+      </div>
     </div>
   )
 }
