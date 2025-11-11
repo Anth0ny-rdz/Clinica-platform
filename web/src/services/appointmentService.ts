@@ -53,3 +53,10 @@ export async function fetchAppointmentsCalendar() {
   if (!response.ok) throw new Error('Error cargando calendario')
   return await response.json()
 }
+
+// 🔹 Obtener horas disponibles del médico
+export async function fetchAvailableHours(doctor_id: number, date: string) {
+  const res = await fetch(`http://127.0.0.1:8000/doctors/${doctor_id}/available-hours?date=${date}`)
+  if (!res.ok) throw new Error('Error al obtener disponibilidad del médico')
+  return await res.json()
+}

@@ -18,6 +18,12 @@ export default function DetalleHistoria() {
       try {
         setLoading(true)
         const data = await fetchEncounterDetail(Number(encounter_id))
+
+        // 🔄 Ajustar naming del backend (vital_signs → vitals)
+        if (data?.vital_signs) {
+          data.vitals = data.vital_signs
+        }
+
         setEncounter(data)
       } catch (err: any) {
         setMessage(err.message)
@@ -77,8 +83,10 @@ export default function DetalleHistoria() {
       >
         <h2 style={{ textAlign: 'center' }}>Historia Médica</h2>
         <p><strong>Fecha:</strong> {encounter.date}</p>
-        <p><strong>Hora:</strong> {encounter.hour}</p>
+        <p><strong>Hora:</strong> {encounter.hour || '—'}</p>
         <p><strong>Médico tratante:</strong> {encounter.doctor_name || '—'}</p>
+        <p><strong>Especialidad:</strong> {encounter.especialidad || '—'}</p>
+        <p><strong>Subespecialidad:</strong> {encounter.subespecialidad || '—'}</p>
 
         <hr style={{ margin: '1rem 0' }} />
 
@@ -91,11 +99,12 @@ export default function DetalleHistoria() {
         <h3>Síntomas Secundarios</h3>
         <p>{encounter.secondary_symptoms || '—'}</p>
 
-        {/*  Revisión de órganos y sistemas */}
         <h3>Revisión de Órganos y Sistemas</h3>
         <p>{encounter.revision_organos || '—'}</p>
 
-        {/*  Diagnóstico */}
+        <h3>Examen Físico</h3>
+        <p>{encounter.examen_fisico || '—'}</p>
+
         <h3>Diagnóstico</h3>
         <p>{encounter.diagnostico || '—'}</p>
 
@@ -105,13 +114,12 @@ export default function DetalleHistoria() {
         <h3>Observaciones</h3>
         <p>{encounter.observations || '—'}</p>
 
-        {/*  Próxima fecha de control */}
         <h3>Próxima Fecha de Control</h3>
         <p>{encounter.fecha_para_control || '—'}</p>
 
         <hr style={{ margin: '1rem 0' }} />
 
-        <h3> Signos Vitales</h3>
+        <h3>Signos Vitales</h3>
         {encounter.vitals ? (
           <ul>
             <li><strong>Presión arterial:</strong> {encounter.vitals.presion_arterial || '—'}</li>

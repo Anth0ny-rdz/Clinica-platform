@@ -145,9 +145,9 @@ export default function DetallePaciente() {
                 <td style={{ padding: '0.5rem' }}>{e.date || '—'}</td>
                 <td style={{ padding: '0.5rem' }}>{e.reason_for_consultation || '—'}</td>
                 <td style={{ padding: '0.5rem' }}>{e.doctor_name || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>{e.vitals?.presion_arterial || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>{e.vitals?.pulso_xmin || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>{e.vitals?.temperatura || '—'}</td>
+                <td style={{ padding: '0.5rem' }}>{e.vital_signs?.presion_arterial || '—'}</td>
+                <td style={{ padding: '0.5rem' }}>{e.vital_signs?.pulso_xmin || '—'}</td>
+                <td style={{ padding: '0.5rem' }}>{e.vital_signs?.temperatura || '—'}</td>
                 <td style={{ padding: '0.5rem' }}>
                   <button
                     onClick={() => navigate(`/medico/pacientes/historia/${e.encounter_id}`)}

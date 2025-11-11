@@ -5,7 +5,6 @@ import RoleProtectedRoute from '@/components/RoleProtectedRoute'
 import CitasRecepcionista from './CitasRecepcionista'
 
 import Usuarios from './Usuarios'
-import Citas from './Citas'
 import Habitaciones from './Habitaciones'
 
 export default function RecepcionistaLayout() {

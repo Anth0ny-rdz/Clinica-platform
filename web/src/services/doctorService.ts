@@ -9,3 +9,9 @@ export async function createDoctorFull(data: any) {
   if (!res.ok) throw new Error('Error al crear doctor')
   return await res.json()
 }
+
+export async function fetchDoctorsBySpecialty(especialidad_id: number) {
+  const res = await fetch(`${API_URL}/doctors/by_specialty/${especialidad_id}`)
+  if (!res.ok) throw new Error('Error al obtener doctores por especialidad')
+  return await res.json()
+}

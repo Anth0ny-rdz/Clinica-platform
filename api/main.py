@@ -325,121 +325,6 @@ def get_doctor_id_by_auth(auth_id: str):
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
-@app.get("/encounters/{patient_id}")
-def get_encounters_by_patient(patient_id: int):
-    """
-    Devuelve todas las historias médicas asociadas a un paciente.
-    Incluye datos básicos del médico y de los signos vitales si existen.
-    """
-    try:
-        # Consultar todas las historias del paciente
-        encounters = (
-            supabase.table("encounters")
-            .select(
-                "encounter_id, date, hour, reason_for_consultation, main_symptoms, treatment, observations, doctor_profile_id, vital_sign_id"
-            )
-            .eq("patient_id", patient_id)
-            .order("date", desc=True)
-            .execute()
-        )
-
-        if not encounters.data:
-            return []
-
-        #  Si cada historia tiene un doctor_profile_id, obtener sus nombres
-        doctors_cache = {}
-        for e in encounters.data:
-            doc_id = e.get("doctor_profile_id")
-            if doc_id and doc_id not in doctors_cache:
-                doctor = (
-                    supabase.table("user_profile")
-                    .select("name, lastname")
-                    .eq("user_profile_id", doc_id)
-                    .execute()
-                )
-                if doctor.data:
-                    doctors_cache[doc_id] = f"{doctor.data[0]['name']} {doctor.data[0]['lastname']}"
-                else:
-                    doctors_cache[doc_id] = "Desconocido"
-            e["doctor_name"] = doctors_cache.get(doc_id, "Desconocido")
-
-        #  Si tiene vital_sign_id, traer signos vitales
-        for e in encounters.data:
-            vital_id = e.get("vital_sign_id")
-            if vital_id:
-                vitals = (
-                    supabase.table("signus_vitalis")
-                    .select("presion_arterial, pulso_xmin, temperatura, fecha")
-                    .eq("vital_sign_id", vital_id)
-                    .execute()
-                )
-                if vitals.data:
-                    e["vitals"] = vitals.data[0]
-
-        return encounters.data
-
-    except Exception as e:
-        print("❌ Error al obtener historias:", str(e))
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
-    
-@app.get("/encounters/detail/{encounter_id}")
-def get_encounter_detail(encounter_id: int):
-    """
-    Devuelve el detalle completo de una historia médica específica (encounter),
-    incluyendo diagnóstico, revisión de órganos, próxima fecha de control,
-    signos vitales y la información del médico tratante.
-    """
-    try:
-        #  Obtener todos los campos, incluyendo los nuevos
-        encounter = (
-            supabase.table("encounters")
-            .select(
-                "encounter_id, date, hour, reason_for_consultation, main_symptoms, secondary_symptoms, "
-                "revision_organos, diagnostico, treatment, observations, fecha_para_control, "
-                "doctor_profile_id, vital_sign_id"
-            )
-            .eq("encounter_id", encounter_id)
-            .single()
-            .execute()
-        )
-
-        if not encounter.data:
-            raise HTTPException(status_code=404, detail="Historia no encontrada")
-
-        data = encounter.data
-
-        #  Obtener nombre del médico tratante
-        doctor = (
-            supabase.table("user_profile")
-            .select("name, lastname")
-            .eq("user_profile_id", data["doctor_profile_id"])
-            .execute()
-        )
-        if doctor.data:
-            data["doctor_name"] = f"{doctor.data[0]['name']} {doctor.data[0]['lastname']}"
-        else:
-            data["doctor_name"] = "Desconocido"
-
-        #  Obtener signos vitales si existen
-        if data.get("vital_sign_id"):
-            vitals = (
-                supabase.table("signus_vitalis")
-                .select("presion_arterial, pulso_xmin, temperatura, fecha")
-                .eq("vital_sign_id", data["vital_sign_id"])
-                .execute()
-            )
-            if vitals.data:
-                data["vitals"] = vitals.data[0]
-            else:
-                data["vitals"] = None
-        else:
-            data["vitals"] = None
-
-        return data
-
-    except Exception as e:
-        print("❌ Error al obtener detalle de historia:", str(e))
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 @app.post("/appointments")
 def create_appointment(data: dict):
@@ -500,8 +385,8 @@ def create_appointment(data: dict):
 @app.get("/appointments")
 def get_all_appointments():
     """
-    Devuelve todas las citas con nombres de paciente y médico
-    combinando datos desde las tablas patients, user_profile y users.
+    Devuelve todas las citas con nombres de paciente y médico,
+    combinando datos desde patients y doctors.
     """
     try:
         # 1️⃣ Obtener todas las citas
@@ -533,38 +418,23 @@ def get_all_appointments():
             if patients_result.data:
                 patients_data = {p["patient_id"]: p for p in patients_result.data}
 
-        # 4️⃣ Traer perfiles de médicos
+        # 4️⃣ Traer médicos (tabla doctors)
         doctors_data = {}
-        user_ids = []
         if doctor_ids:
             doctors_result = (
-                supabase.table("user_profile")
-                .select("user_profile_id, name, lastname, telephone, user_id")
-                .in_("user_profile_id", doctor_ids)
+                supabase.table("doctors")
+                .select("doctors_id, nombres, apellidos, correo_institucional, subespecialidad")
+                .in_("doctors_id", doctor_ids)
                 .execute()
             )
             if doctors_result.data:
-                doctors_data = {d["user_profile_id"]: d for d in doctors_result.data}
-                user_ids = [d["user_id"] for d in doctors_result.data if d.get("user_id")]
+                doctors_data = {d["doctors_id"]: d for d in doctors_result.data}
 
-        # 5️⃣ Traer correos de médicos desde users
-        doctor_emails = {}
-        if user_ids:
-            users_result = (
-                supabase.table("users")
-                .select("userid, email")
-                .in_("userid", user_ids)
-                .execute()
-            )
-            if users_result.data:
-                doctor_emails = {u["userid"]: u["email"] for u in users_result.data}
-
-        # 6️⃣ Armar resultado final
+        # 5️⃣ Armar resultado final
         final_list = []
         for a in appointments:
             patient_info = patients_data.get(a["patient_id"], {})
             doctor_info = doctors_data.get(a["doctor_profile_id"], {})
-            email_doc = doctor_emails.get(doctor_info.get("user_id"), "—")
 
             final_list.append({
                 "appointment_id": a["appointment_id"],
@@ -574,8 +444,9 @@ def get_all_appointments():
                 "status": a.get("status", "Pendiente"),
                 "patient_name": f"{patient_info.get('names', '—')} {patient_info.get('lastname', '')}".strip(),
                 "patient_email": patient_info.get("email", "—"),
-                "doctor_name": f"{doctor_info.get('name', '—')} {doctor_info.get('lastname', '')}".strip(),
-                "doctor_email": email_doc,
+                "doctor_name": f"{doctor_info.get('nombres', '(Médico no asignado)')} {doctor_info.get('apellidos', '')}".strip(),
+                "doctor_email": doctor_info.get("correo_institucional", "—"),
+                "doctor_subespecialidad": doctor_info.get("subespecialidad", "—"),
             })
 
         return final_list
@@ -583,6 +454,7 @@ def get_all_appointments():
     except Exception as e:
         print("❌ Error obteniendo citas:", str(e))
         raise HTTPException(status_code=500, detail=f"Error obteniendo citas: {str(e)}")
+
 
 # 👨‍⚕️ Obtener citas por médico (vista del médico)
 @app.get("/appointments/doctor/{doctor_id}")
@@ -741,14 +613,14 @@ def get_appointments_calendar():
 
             # 🔹 Buscar datos del médico
             doctor = (
-                supabase.table("user_profile")
-                .select("name, lastname")
-                .eq("user_profile_id", a["doctor_profile_id"])
+                supabase.table("doctors")
+                .select("nombres, apellidos")
+                .eq("doctors_id", a["doctor_profile_id"])
                 .execute()
             )
 
             doctor_name = (
-                f"{doctor.data[0]['name']} {doctor.data[0]['lastname']}"
+                f"{doctor.data[0]['nombres']} {doctor.data[0]['apellidos']}"
                 if doctor.data else "Médico no asignado"
             )
 
@@ -894,3 +766,410 @@ def get_specialties():
     except Exception as e:
         print("❌ Error obteniendo especialidades:", str(e))
         raise HTTPException(status_code=500, detail="Error al obtener especialidades")
+
+@app.get("/doctors/by_specialty/{especialidad_id}")
+def get_doctors_by_specialty(especialidad_id: int):
+    """
+    Devuelve todos los doctores de una especialidad específica,
+    incluyendo sus nombres y correos.
+    """
+    try:
+        result = (
+            supabase.table("doctors")
+            .select("doctors_id, nombres, apellidos, correo_institucional, especialidad_id", "subespecialidad")
+            .eq("especialidad_id", especialidad_id)
+            .execute()
+        )
+        return result.data
+    except Exception as e:
+        print("❌ Error obteniendo doctores por especialidad:", str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener doctores por especialidad")
+
+
+@app.get("/patients/{patient_id}/encounters")
+def get_encounters_by_patient(patient_id: int):
+    """
+    Devuelve todas las historias médicas (encounters) de un paciente específico,
+    incluyendo datos del médico (desde doctors + specialties) y signos vitales (desde signus_vitalis).
+    """
+    try:
+        # 1️⃣ Obtener todos los encounters del paciente
+        encounters = (
+            supabase.table("encounters")
+            .select(
+                """
+                encounter_id,
+                patient_id,
+                doctor_id,
+                date,
+                hour,
+                reason_for_consultation,
+                main_symptoms,
+                secondary_symptoms,
+                revision_organos,
+                examen_fisico,
+                diagnostico,
+                treatment,
+                observations,
+                fecha_para_control,
+                vital_sign_id
+                """
+            )
+            .eq("patient_id", patient_id)
+            .order("date", desc=True)
+            .execute()
+            .data
+        )
+
+        if not encounters:
+            return []
+
+        # 2️⃣ Obtener los doctores vinculados
+        doctor_ids = [e["doctor_id"] for e in encounters if e.get("doctor_id")]
+        doctors = (
+            supabase.table("doctors")
+            .select("doctors_id, nombres, apellidos, especialidad_id, subespecialidad")
+            .in_("doctors_id", doctor_ids)
+            .execute()
+            .data
+        ) if doctor_ids else []
+
+        doctor_dict = {d["doctors_id"]: d for d in doctors}
+
+        # 3️⃣ Obtener nombres de especialidades
+        specialty_ids = [d["especialidad_id"] for d in doctors if d.get("especialidad_id")]
+        specialties = (
+            supabase.table("specialties")
+            .select("especialidad_id, name")
+            .in_("especialidad_id", specialty_ids)
+            .execute()
+            .data
+        ) if specialty_ids else []
+
+        specialty_dict = {s["especialidad_id"]: s["name"] for s in specialties}
+
+        # 4️⃣ Obtener los signos vitales
+        vital_ids = [str(e["vital_sign_id"]) for e in encounters if e.get("vital_sign_id")]
+        vitals = (
+            supabase.table("signus_vitalis")
+            .select("vital_sign_id, presion_arterial, pulso_xmin, temperatura, fecha")
+            .in_("vital_sign_id", vital_ids)
+            .execute()
+            .data
+        ) if vital_ids else []
+
+        # Normalizamos los IDs a string para evitar problemas de coincidencia
+        vital_dict = {str(v["vital_sign_id"]): v for v in vitals}
+
+        # 5️⃣ Combinar toda la información
+        full_data = []
+        for e in encounters:
+            doc = doctor_dict.get(e.get("doctor_id"), {})
+            vit = vital_dict.get(str(e.get("vital_sign_id")), {})  # 👈 clave: comparar como string
+
+            especialidad_nombre = "—"
+            if doc.get("especialidad_id"):
+                especialidad_nombre = specialty_dict.get(doc["especialidad_id"], "—")
+
+            # 🔍 Depuración opcional
+            print(f"🩺 Encounter {e['encounter_id']} | Doctor ID={e.get('doctor_id')} | Vital ID={e.get('vital_sign_id')} -> {vit}")
+
+            full_data.append({
+                "encounter_id": e["encounter_id"],
+                "date": e["date"],
+                "hour": e.get("hour"),
+                "reason_for_consultation": e.get("reason_for_consultation"),
+                "main_symptoms": e.get("main_symptoms"),
+                "secondary_symptoms": e.get("secondary_symptoms"),
+                "revision_organos": e.get("revision_organos"),
+                "examen_fisico": e.get("examen_fisico"),
+                "diagnostico": e.get("diagnostico"),
+                "treatment": e.get("treatment"),
+                "observations": e.get("observations"),
+                "fecha_para_control": e.get("fecha_para_control"),
+                "doctor_name": f"{doc.get('nombres', '(Médico no asignado)')} {doc.get('apellidos', '')}".strip(),
+                "especialidad": especialidad_nombre,
+                "subespecialidad": doc.get("subespecialidad", "—"),
+                "vital_signs": {
+                    "presion_arterial": vit.get("presion_arterial", "—"),
+                    "pulso_xmin": vit.get("pulso_xmin", "—"),
+                    "temperatura": vit.get("temperatura", "—"),
+                    "fecha": vit.get("fecha", "—"),
+                },
+            })
+
+        return full_data
+
+    except Exception as e:
+        print("❌ Error obteniendo historias del paciente:", str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener historias del paciente")
+
+
+
+
+@app.get("/encounters/detail/{encounter_id}")
+def get_encounter_detail(encounter_id: int):
+    """
+    Devuelve el detalle completo de una historia médica específica (encounter),
+    incluyendo información del paciente, médico (desde doctors + specialties)
+    y signos vitales.
+    """
+    try:
+        # 1️⃣ Obtener la historia médica base
+        encounter = (
+            supabase.table("encounters")
+            .select(
+                """
+                encounter_id,
+                patient_id,
+                doctor_id,
+                date,
+                hour,
+                reason_for_consultation,
+                main_symptoms,
+                secondary_symptoms,
+                revision_organos,
+                examen_fisico,
+                diagnostico,
+                treatment,
+                observations,
+                fecha_para_control,
+                vital_sign_id
+                """
+            )
+            .eq("encounter_id", encounter_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not encounter:
+            raise HTTPException(status_code=404, detail="Historia médica no encontrada")
+
+        # 2️⃣ Obtener el médico asociado
+        doctor_id = encounter.get("doctor_id")
+        doctor_data = None
+        specialty_name = "—"
+
+        if doctor_id:
+            doctor_result = (
+                supabase.table("doctors")
+                .select("doctors_id, nombres, apellidos, especialidad_id, subespecialidad")
+                .eq("doctors_id", doctor_id)
+                .single()
+                .execute()
+                .data
+            )
+            doctor_data = doctor_result
+
+            # 3️⃣ Obtener nombre de la especialidad
+            if doctor_data and doctor_data.get("especialidad_id"):
+                specialty_result = (
+                    supabase.table("specialties")
+                    .select("especialidad_id, name")
+                    .eq("especialidad_id", doctor_data["especialidad_id"])
+                    .single()
+                    .execute()
+                    .data
+                )
+                specialty_name = specialty_result["name"]
+
+        # 4️⃣ Obtener signos vitales (si existen)
+        vital_signs = {}
+        vital_id = encounter.get("vital_sign_id")
+        if vital_id:
+            vitals_result = (
+                supabase.table("signus_vitalis")
+                .select("vital_sign_id, presion_arterial, pulso_xmin, temperatura, fecha")
+                .eq("vital_sign_id", vital_id)
+                .single()
+                .execute()
+                .data
+            )
+            vital_signs = vitals_result or {}
+
+        # 5️⃣ Armar respuesta consolidada
+        response = {
+            "encounter_id": encounter["encounter_id"],
+            "date": encounter["date"],
+            "hour": encounter.get("hour"),
+            "reason_for_consultation": encounter.get("reason_for_consultation"),
+            "main_symptoms": encounter.get("main_symptoms"),
+            "secondary_symptoms": encounter.get("secondary_symptoms"),
+            "revision_organos": encounter.get("revision_organos"),
+            "examen_fisico": encounter.get("examen_fisico"),
+            "diagnostico": encounter.get("diagnostico"),
+            "treatment": encounter.get("treatment"),
+            "observations": encounter.get("observations"),
+            "fecha_para_control": encounter.get("fecha_para_control"),
+            "doctor_name": f"{doctor_data.get('nombres', '(Médico no asignado)')} {doctor_data.get('apellidos', '')}".strip() if doctor_data else "(Médico no asignado)",
+            "especialidad": specialty_name,
+            "subespecialidad": doctor_data.get("subespecialidad", "—") if doctor_data else "—",
+            "vital_signs": vital_signs,
+        }
+
+        return response
+
+    except Exception as e:
+        print("❌ Error obteniendo detalle de historia médica:", str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener detalle de historia médica")
+
+@app.get("/encounters/{patient_id}")
+def get_encounters_by_patient(patient_id: int):
+    """
+    Devuelve todas las historias médicas asociadas a un paciente,
+    incluyendo datos del médico (desde doctors + specialties)
+    y de los signos vitales (desde signus_vitalis).
+    """
+    try:
+        # 🔹 Consultar todas las historias del paciente
+        encounters = (
+            supabase.table("encounters")
+            .select(
+                "encounter_id, date, hour, reason_for_consultation, main_symptoms, treatment, observations, doctor_id, vital_sign_id"
+            )
+            .eq("patient_id", patient_id)
+            .order("date", desc=True)
+            .execute()
+        )
+
+        if not encounters.data:
+            return []
+
+        # 🔹 Obtener información de los médicos asociados
+        doctors_cache = {}
+        specialty_cache = {}
+
+        # Reunir todos los doctor_id únicos
+        doctor_ids = [e["doctor_id"] for e in encounters.data if e.get("doctor_id")]
+
+        if doctor_ids:
+            doctors = (
+                supabase.table("doctors")
+                .select("doctors_id, nombres, apellidos, especialidad_id")
+                .in_("doctors_id", doctor_ids)
+                .execute()
+            ).data
+
+            # Crear cache por doctors_id
+            doctors_cache = {d["doctors_id"]: d for d in doctors}
+
+            # Obtener todas las especialidades de esos doctores
+            specialty_ids = [d["especialidad_id"] for d in doctors if d.get("especialidad_id")]
+
+            if specialty_ids:
+                specialties = (
+                    supabase.table("specialties")
+                    .select("especialidad_id, name")
+                    .in_("especialidad_id", specialty_ids)
+                    .execute()
+                ).data
+
+                specialty_cache = {s["especialidad_id"]: s["name"] for s in specialties}
+
+        # 🔹 Si tiene vital_sign_id, traer signos vitales
+        vital_ids = [e["vital_sign_id"] for e in encounters.data if e.get("vital_sign_id")]
+        vitals_cache = {}
+
+        if vital_ids:
+            vitals = (
+                supabase.table("signus_vitalis")
+                .select("vital_sign_id, presion_arterial, pulso_xmin, temperatura, fecha")
+                .in_("vital_sign_id", vital_ids)
+                .execute()
+            ).data
+
+            vitals_cache = {v["vital_sign_id"]: v for v in vitals}
+
+        # 🔹 Combinar todo
+        for e in encounters.data:
+            doc = doctors_cache.get(e.get("doctor_id"))
+            if doc:
+                especialidad = specialty_cache.get(doc.get("especialidad_id"), "—")
+                e["doctor_name"] = f"{doc['nombres']} {doc['apellidos']}"
+                e["especialidad"] = especialidad
+            else:
+                e["doctor_name"] = "(Médico no asignado)"
+                e["especialidad"] = "—"
+
+            if e.get("vital_sign_id"):
+                e["vitals"] = vitals_cache.get(e["vital_sign_id"], {})
+
+        return encounters.data
+
+    except Exception as e:
+        print("❌ Error al obtener historias:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    
+@app.get("/doctors/{doctor_id}/available-hours")
+def get_available_hours(doctor_id: int, date: str):
+    """
+    Devuelve las horas disponibles de un médico según su horario JSONB (en español con inicio/fin/activo)
+    y las citas ya agendadas.
+    """
+    import datetime
+
+    try:
+        # 1️⃣ Obtener horario del doctor
+        doctor = (
+            supabase.table("doctors")
+            .select("horario_atencion")
+            .eq("doctors_id", doctor_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not doctor or not doctor.get("horario_atencion"):
+            raise HTTPException(status_code=404, detail="No se encontró horario para este médico.")
+
+        horario_json = doctor["horario_atencion"]
+
+        # 2️⃣ Convertir la fecha a nombre del día en español
+        dias_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        fecha_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
+        dia_semana = dias_es[fecha_obj.weekday()]
+
+        # 3️⃣ Buscar configuración del día
+        dia_data = horario_json.get(dia_semana)
+        if not dia_data or not dia_data.get("activo"):
+            return {"disponible": False, "dia": dia_semana, "horas": []}
+
+        inicio = dia_data.get("inicio")
+        fin = dia_data.get("fin")
+
+        # 4️⃣ Generar lista de horas de 30 min entre inicio y fin
+        def generar_horas(inicio, fin):
+            horas = []
+            actual = datetime.datetime.strptime(inicio, "%H:%M")
+            limite = datetime.datetime.strptime(fin, "%H:%M")
+            while actual < limite:
+                horas.append(actual.strftime("%H:%M"))
+                actual += datetime.timedelta(minutes=30)
+            return horas
+
+        horas_dia = generar_horas(inicio, fin)
+
+        # 5️⃣ Obtener las horas ocupadas
+        citas = (
+            supabase.table("appointments")
+            .select("time")
+            .eq("doctor_profile_id", doctor_id)
+            .eq("date", date)
+            .execute()
+            .data
+        )
+        horas_ocupadas = [c["time"] for c in citas] if citas else []
+
+        # 6️⃣ Filtrar disponibles
+        horas_disponibles = [h for h in horas_dia if h not in horas_ocupadas]
+
+        return {
+            "disponible": len(horas_disponibles) > 0,
+            "dia": dia_semana,
+            "horas": horas_disponibles
+        }
+
+    except Exception as e:
+        print("❌ Error obteniendo horas disponibles:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error obteniendo horas disponibles: {str(e)}")
