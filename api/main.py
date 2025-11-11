@@ -8,6 +8,7 @@ from typing import Annotated
 import bcrypt
 from fastapi import Body
 from datetime import datetime, timedelta
+import json
 
 from fastapi.responses import JSONResponse
 
@@ -200,27 +201,28 @@ def update_patient(cedula: str, data: dict = Body(...)):
 @app.post("/encounters")
 def create_encounter(data: dict):
     """
-    Crea una nueva historia médica (encounter) junto a signos vitales vinculados.
+    Crea una nueva historia médica (encounter) junto a signos vitales,
+    vinculando directamente al médico desde la tabla 'doctors' (doctor_id).
     """
     try:
-        print(" Datos recibidos:", data)
+        print("📥 Datos recibidos:", data)
 
-        #  Crear la historia sin vital_sign_id aún
+        patient_id = int(data["patient_id"])
+        doctor_id = int(data["doctor_id"])
+
+        # Crear la historia médica
         encounter_data = {
-            "patient_id": int(data["patient_id"]),
-            "doctor_profile_id": int(data["doctor_profile_id"]),
+            "patient_id": patient_id,
+            "doctor_id": doctor_id,  # ✅ ahora apunta a doctors.doctors_id
             "reason_for_consultation": data.get("reason_for_consultation"),
             "main_symptoms": data.get("main_symptoms"),
             "secondary_symptoms": data.get("secondary_symptoms"),
             "treatment": data.get("treatment"),
             "observations": data.get("observations"),
-
-            # 🩺 Campos clínicos nuevos
             "diagnostico": data.get("diagnostico"),
             "revision_organos": data.get("revision_organos"),
+            "examen_fisico" : data.get("examen_fisico"),
             "fecha_para_control": data.get("fecha_para_control"),
-
-            #  Metadatos automáticos
             "date": datetime.now().date().isoformat(),
             "hour": datetime.now().time().strftime("%H:%M:%S"),
             "created_at": datetime.now().isoformat(),
@@ -234,7 +236,7 @@ def create_encounter(data: dict):
 
         encounter_id = result_encounter.data[0]["encounter_id"]
 
-        # Si se mandan signos vitales, crearlos y vincularlos
+        # 🩺 Signos vitales (si vienen)
         vitals_data = data.get("vitals")
         if vitals_data:
             vital_record = {
@@ -244,22 +246,18 @@ def create_encounter(data: dict):
                 "pulso_xmin": vitals_data.get("pulso_xmin"),
                 "temperatura": vitals_data.get("temperatura"),
             }
-
             result_vital = supabase.table("signus_vitalis").insert(vital_record).execute()
 
-            if not result_vital.data:
-                raise HTTPException(status_code=400, detail="Error creando signos vitales.")
-
-            vital_sign_id = result_vital.data[0]["vital_sign_id"]
-
-            #  Actualizar la historia con la FK de signos vitales
-            supabase.table("encounters").update({"vital_sign_id": vital_sign_id}).eq("encounter_id", encounter_id).execute()
+            if result_vital.data:
+                vital_sign_id = result_vital.data[0]["vital_sign_id"]
+                supabase.table("encounters").update({"vital_sign_id": vital_sign_id}).eq("encounter_id", encounter_id).execute()
 
         return {"message": "✅ Historia y signos vitales creados correctamente", "encounter_id": encounter_id}
 
     except Exception as e:
         print("❌ Error creando historia médica:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
 
 
 @app.post("/vital_signs")
@@ -299,6 +297,33 @@ def get_doctor_profile(auth_id: str):
     except Exception as e:
         print("❌ Error obteniendo perfil del médico:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    
+@app.get("/doctor/id/{auth_id}")
+def get_doctor_id_by_auth(auth_id: str):
+    """
+    Devuelve el doctors_id de la tabla 'doctors' asociado al auth_id del médico logueado.
+    """
+    try:
+        # Buscar el user_id del auth_id
+        user_query = supabase.table("user_profile").select("user_id").eq("auth_id", auth_id).single().execute()
+        if not user_query.data:
+            raise HTTPException(status_code=404, detail="Perfil de usuario no encontrado.")
+
+        user_id = user_query.data["user_id"]
+
+        # Buscar el doctor que tenga ese user_id
+        doctor_query = supabase.table("doctors").select("doctors_id").eq("user_id", user_id).single().execute()
+        if not doctor_query.data:
+            raise HTTPException(status_code=404, detail="Médico no encontrado en tabla doctors.")
+
+        return {"doctor_id": doctor_query.data["doctors_id"]}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print("❌ Error obteniendo doctor_id:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
 
 @app.get("/encounters/{patient_id}")
 def get_encounters_by_patient(patient_id: int):
@@ -760,3 +785,112 @@ def get_appointments_calendar():
     except Exception as e:
         print("❌ Error obteniendo citas para calendario:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+from fastapi import HTTPException
+from datetime import datetime
+import bcrypt
+import json
+
+@app.post("/create_doctor_full")
+def create_doctor_full(data: dict):
+    """
+    Crea un usuario con rol médico y su registro completo en la tabla 'doctors'.
+    Maneja el horario de atención como JSONB.
+    """
+    try:
+        cedula = data["cedula_profesional"]
+
+        # 1️⃣ Validar cédula
+        if not validar_cedula_ecuador(cedula):
+            raise HTTPException(status_code=400, detail="❌ Cédula no válida.")
+
+        # 2️⃣ Verificar duplicado
+        existente = supabase.table("doctors").select("cedula_profesional").eq("cedula_profesional", cedula).execute()
+        if existente.data:
+            raise HTTPException(status_code=400, detail="⚠️ Ya existe un doctor con esta cédula profesional.")
+
+        # 3️⃣ Crear usuario en Auth
+        auth_resp = supabase.auth.admin.create_user({
+            "email": data["correo_institucional"],
+            "password": data["password"],
+            "email_confirm": True
+        })
+        auth_user = auth_resp.user
+        if not auth_user:
+            raise HTTPException(status_code=400, detail="Error creando usuario en Auth")
+        auth_id = auth_user.id
+
+        # 4️⃣ Insertar en users
+        password_hash = bcrypt.hashpw(data["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        user_data = {
+            "username": data["correo_institucional"].split("@")[0],
+            "email": data["correo_institucional"],
+            "password_hash": password_hash,
+            "is_active": True,
+            "is_staff": False,
+            "is_superuser": False,
+        }
+        user_insert = supabase.table("users").insert(user_data).execute()
+        user_id = user_insert.data[0]["userid"]
+
+        # 5️⃣ Crear perfil en user_profile
+        profile_data = {
+            "auth_id": auth_id,
+            "user_id": user_id,
+            "rol_id": 2,
+            "id_number": cedula,
+            "name": data["nombres"],
+            "lastname": data["apellidos"],
+            "telephone": data.get("telefono"),
+            "address": data.get("direccion", "Sin dirección"),
+            "birth_date": data.get("birth_date", "1900-01-01"),
+        }
+        supabase.table("user_profile").insert(profile_data).execute()
+
+        # 6️⃣ Insertar en doctors
+        horario_json = data.get("horario_atencion")
+        if isinstance(horario_json, str):
+            try:
+                horario_json = json.loads(horario_json)
+            except json.JSONDecodeError:
+                horario_json = {}
+
+        doctor_data = {
+            "user_id": user_id,
+            "cedula_profesional": cedula,
+            "nombres": data["nombres"],
+            "apellidos": data["apellidos"],
+            "especialidad_id": data.get("especialidad_id"),
+            "subespecialidad": data.get("subespecialidad"),
+            "titulo_academico": data.get("titulo_academico"),
+            "experiencia_anios": data.get("experiencia_anios"),
+            "telefono": data.get("telefono"),
+            "correo_institucional": data.get("correo_institucional"),
+            "horario_atencion": horario_json,
+            "firma_digital": data.get("firma_digital"),
+            "direccion": data.get("direccion"),  # ✅ corregido aquí
+            "created_at": datetime.now().isoformat(),
+        }
+        doctor_insert = supabase.table("doctors").insert(doctor_data).execute()
+
+        return {
+            "message": "✅ Doctor creado correctamente",
+            "doctor_id": doctor_insert.data[0]["doctors_id"],
+            "user_id": user_id
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print("❌ Error creando doctor:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+@app.get("/specialties")
+def get_specialties():
+    """Devuelve todas las especialidades médicas."""
+    try:
+        result = supabase.table("specialties").select("*").execute()
+        return result.data
+    except Exception as e:
+        print("❌ Error obteniendo especialidades:", str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener especialidades")
