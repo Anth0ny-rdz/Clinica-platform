@@ -35,6 +35,9 @@ export default function HeaderRecepcionista() {
       </div>
 
       <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <Link to="/recepcionista" style={{ color: 'white', textDecoration: 'none' }}>
+          Inicio
+        </Link>
         <Link to="/recepcionista/usuarios" style={{ color: 'white', textDecoration: 'none' }}>
           Usuarios
         </Link>
@@ -43,6 +46,9 @@ export default function HeaderRecepcionista() {
         </Link>
         <Link to="/recepcionista/habitaciones" style={{ color: 'white', textDecoration: 'none' }}>
           Habitaciones
+        </Link>
+        <Link to="/recepcionista/NuevaAdmision" style={{ color: 'white', textDecoration: 'none' }}>
+          Hospitalizar
         </Link>
 
         {/* Botón de cerrar sesión */}

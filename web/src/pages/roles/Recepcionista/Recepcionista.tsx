@@ -3,9 +3,10 @@ import HeaderAdmin from '@/components/HeaderRecepcionista'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleProtectedRoute from '@/components/RoleProtectedRoute'
 import CitasRecepcionista from './CitasRecepcionista'
-
 import Usuarios from './Usuarios'
 import Habitaciones from './Habitaciones'
+import DashboardRecepcionista from './DashboardRecepcionista'
+import NuevaAdmision from './NuevaAdmision'
 
 export default function RecepcionistaLayout() {
   return (
@@ -15,9 +16,14 @@ export default function RecepcionistaLayout() {
           <HeaderAdmin />
           <main style={{ padding: '2rem' }}>
             <Routes>
+              {/* 👇 Pantalla principal por defecto */}
+              <Route index element={<DashboardRecepcionista />} />
+              
               <Route path="usuarios" element={<Usuarios />} />
               <Route path="habitaciones" element={<Habitaciones />} />
               <Route path="citas" element={<CitasRecepcionista />} />
+              <Route path="inicio" element={<DashboardRecepcionista />} />
+              <Route path="NuevaAdmision" element={<NuevaAdmision />} />
 
             </Routes>
           </main>

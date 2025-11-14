@@ -1,10 +1,12 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/context/AuthContext'
+import { useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { useAuth } from "@/context/AuthContext"
+import { Spinner, Card, Form, Button, Container, Row, Col, Alert } from "react-bootstrap"
+import logoClinica from "@/assets/logo_clinica.png" // ✅ Ajusta la ruta si está en otra carpeta
 
 export default function Login() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -20,96 +22,107 @@ export default function Login() {
       const authUser = await signIn(email, password)
 
       if (!authUser) {
-        setError('Credenciales inválidas o usuario sin rol asignado.')
+        setError("Credenciales inválidas o usuario sin rol asignado.")
         setLoading(false)
         return
       }
 
       switch (authUser.rol) {
-        case 'Administrador':
-          navigate('/admin')
+        case "Administrador":
+          navigate("/admin")
           break
-        case 'Médico':
-          navigate('/medico')
+        case "Médico":
+          navigate("/medico")
           break
-        case 'Enfermeria':
-          navigate('/enfermeria')
+        case "Enfermeria":
+          navigate("/enfermeria")
           break
-        case 'Recepcionista / Asistente administrativo':
-          navigate('/recepcionista')
+        case "Recepcionista / Asistente administrativo":
+          navigate("/recepcionista")
           break
-        case 'Paciente':
-          navigate('/paciente')
+        case "Paciente":
+          navigate("/paciente")
           break
         default:
           setError(`Rol desconocido: ${authUser.rol}`)
       }
-
-      setLoading(false)
     } catch (err: any) {
-      console.error('❌ Error al iniciar sesión:', err)
-      setError('Credenciales inválidas o usuario sin rol asignado.')
+      console.error("❌ Error al iniciar sesión:", err)
+      setError("Credenciales inválidas o usuario sin rol asignado.")
+    } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-6">
-          🩺 Iniciar sesión
-        </h1>
+    <Container fluid className="d-flex align-items-center justify-content-center vh-100 bg-light">
+      <Row className="w-100 justify-content-center">
+        <Col xs={10} sm={8} md={6} lg={4}>
+          <Card className="shadow-lg border-0 rounded-4">
+            <Card.Body className="p-5 text-center">
+              {/* 🏥 Logo */}
+              <div className="mb-4">
+                <img
+                  src={logoClinica}
+                  alt="Logo Clínica Latacunga"
+                  className="img-fluid mb-2"
+                  style={{ maxWidth: "120px" }}
+                />
+                <h2 className="fw-bold text-primary mt-3">Clínica Latacunga</h2>
+                <p className="text-muted small">Sistema de Gestión Clínica</p>
+              </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">
-              Correo electrónico
-            </label>
-            <input
-              type="email"
-              placeholder="ejemplo@correo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+              {/* 🧾 Formulario */}
+              <Form onSubmit={handleSubmit}>
+                <Form.Group className="mb-3 text-start">
+                  <Form.Label className="fw-semibold text-secondary">Correo electrónico</Form.Label>
+                  <Form.Control
+                    type="email"
+                    placeholder="ejemplo@correo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </Form.Group>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+                <Form.Group className="mb-4 text-start">
+                  <Form.Label className="fw-semibold text-secondary">Contraseña</Form.Label>
+                  <Form.Control
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </Form.Group>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full py-2 rounded-lg text-white font-semibold transition-colors ${
-              loading
-                ? 'bg-blue-300 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {loading ? 'Ingresando...' : 'Entrar'}
-          </button>
-        </form>
+                <Button
+                  variant="primary"
+                  type="submit"
+                  className="w-100 py-2 fw-semibold shadow-sm"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Spinner animation="border" size="sm" className="me-2" /> Ingresando...
+                    </>
+                  ) : (
+                    "Entrar"
+                  )}
+                </Button>
+              </Form>
 
-        {error && (
-          <p className="text-red-600 text-sm mt-4 text-center">{error}</p>
-        )}
+              {/* ⚠️ Mensaje de error */}
+              {error && <Alert variant="danger" className="mt-3 py-2">{error}</Alert>}
 
-        <p className="text-center text-gray-500 text-sm mt-6">
-          Clínica Latacunga © {new Date().getFullYear()}
-        </p>
-      </div>
-    </div>
+              {/* 📆 Footer */}
+              <p className="text-muted small mt-4 mb-0">
+                © {new Date().getFullYear()} Clínica Latacunga — Todos los derechos reservados.
+              </p>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+    </Container>
   )
 }

@@ -10,6 +10,8 @@ import Pacientes from './Pacientes'
 import DetallePaciente from './DetallePaciente'
 import NuevaHistoria from './NuevaHistoria'
 import DetalleHistoria from './DetalleHistoria'
+import HospitalizacionesMedico from './HospitalizacionesMedico'
+import HospitalizacionDetalle from './HospitalizacionDetalle'
 
 export default function MedicoLayout() {
   return (
@@ -25,7 +27,9 @@ export default function MedicoLayout() {
               <Route path="pacientes/historia/:encounter_id" element={<DetalleHistoria />} />
               <Route path="citas" element={<CitasMedico />} />
               <Route path="calendario" element={<CalendarioCitas />} />  {/* 👈 nuevo */}
-              
+              <Route path="hospitalizacionesmedico" element={<HospitalizacionesMedico />} />
+              <Route path="hospitalizaciondetalle/:admission_id" element={<HospitalizacionDetalle />} />
+
             </Routes>
           </main>
         </div>

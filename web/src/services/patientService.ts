@@ -31,3 +31,11 @@ export async function updatePatient(cedula: string, updates: Record<string, any>
   return await res.json()
 }
 
+// 🔹 Obtener historial de hospitalizaciones del paciente
+export async function fetchHospitalizationsByPatient(patient_id: number) {
+  const res = await fetch(`${API_URL}/admissions/by_patient/${patient_id}`);
+  if (!res.ok) throw new Error("Error obteniendo hospitalizaciones");
+  return await res.json();
+}
+
+

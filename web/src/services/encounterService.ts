@@ -35,3 +35,15 @@ export async function fetchEncounterDetail(encounter_id: number) {
   if (!res.ok) throw new Error(`Error al obtener detalle (${res.status})`)
   return await res.json()
 }
+
+
+// 🔹 HISTORIAL BREVE PARA RECEPCIÓN
+export async function fetchEncountersByPatientBrief(patient_id: number) {
+  const res = await fetch(`${API_URL}/encounters/patient/${patient_id}/brief`);
+
+  if (!res.ok) {
+    throw new Error("Error obteniendo historial médico");
+  }
+
+  return await res.json();
+}

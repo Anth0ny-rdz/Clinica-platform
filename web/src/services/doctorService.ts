@@ -15,3 +15,16 @@ export async function fetchDoctorsBySpecialty(especialidad_id: number) {
   if (!res.ok) throw new Error('Error al obtener doctores por especialidad')
   return await res.json()
 }
+
+
+export async function fetchAllDoctorsReal() {
+  const res = await fetch(`${API_URL}/doctors/all`)
+  if (!res.ok) throw new Error("Error al obtener doctores")
+  return await res.json()
+}
+
+export async function fetchDoctorByAuth(auth_id: string) {
+  const res = await fetch(`${API_URL}/doctor/by_auth/${auth_id}`);
+  if (!res.ok) throw new Error("Error obteniendo el perfil del médico");
+  return await res.json();
+}

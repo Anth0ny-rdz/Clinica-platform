@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchPatientByCedula, updatePatient } from '@/services/patientService'
+import { Card, Spinner, Button, Table, Alert } from "react-bootstrap"
+
+import { fetchPatientByCedula, updatePatient, fetchHospitalizationsByPatient } from '@/services/patientService'
 import { fetchEncountersByPatient } from '@/services/encounterService'
 
 export default function DetallePaciente() {
   const { doc_id } = useParams()
   const navigate = useNavigate()
+
   const [patient, setPatient] = useState<any>(null)
   const [encounters, setEncounters] = useState<any[]>([])
-  const [editMode, setEditMode] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [hospitalizations, setHospitalizations] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [editMode, setEditMode] = useState(false)
 
-  // 🔹 Cargar paciente y su historial
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -22,6 +25,10 @@ export default function DetallePaciente() {
 
         const histories = await fetchEncountersByPatient(data.patient_id)
         setEncounters(histories)
+
+        const admissions = await fetchHospitalizationsByPatient(data.patient_id)
+        setHospitalizations(admissions)
+
       } catch (err: any) {
         console.error('Error cargando datos:', err)
         setMessage(err.message)
@@ -32,141 +39,158 @@ export default function DetallePaciente() {
     loadData()
   }, [doc_id])
 
-  // 🔹 Manejo de cambios de texto/inputs
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: any) => {
     const { name, value } = e.target
     setPatient((prev: any) => ({ ...prev, [name]: value }))
   }
 
-  // 🔹 Guardar cambios del paciente
   const handleSave = async () => {
     try {
-      const updates = {
-        personal_history: patient.personal_history || null,
-        family_history: patient.family_history || null,
-        allergy: patient.allergy || null,
-        common_medicines: patient.common_medicines || null,
-        blood_type: patient.blood_type || null,
-        genre: patient.genre || null,
-        parroquia: patient.parroquia || null,
-        ciudad: patient.ciudad || null,
-        provincia: patient.provincia || null,
-      }
-      await updatePatient(doc_id!, updates)
+      await updatePatient(doc_id!, patient)
       setEditMode(false)
-      setMessage('✅ Paciente actualizado correctamente')
+      setMessage("✅ Paciente actualizado correctamente")
     } catch (err: any) {
-      setMessage('❌ Error al guardar cambios: ' + err.message)
+      setMessage("❌ Error al guardar cambios: " + err.message)
     }
   }
 
-  if (loading) return <p style={{ padding: '2rem' }}>Cargando datos del paciente...</p>
-  if (!patient) return <p style={{ padding: '2rem' }}>{message || 'Paciente no encontrado.'}</p>
+  if (loading) return <Spinner className="m-4" />
+
+  if (!patient) return <Alert variant="danger">{message || "Paciente no encontrado"}</Alert>
 
   return (
-    <div style={{ maxWidth: 900, margin: '2rem auto' }}>
-      {/* Encabezado */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <button onClick={() => navigate(-1)}>← Volver</button>
-        <button onClick={() => navigate(`/medico/pacientes/${patient.patient_id}/nueva-historia`)}>
-          ➕ Nueva Historia Médica
-        </button>
-      </div>
+    <div className="container mt-4">
 
-      <h2>🧍‍♂️ Detalles del Paciente</h2>
-      <p><strong>Cédula:</strong> {patient.doc_id}</p>
-      <p><strong>Nombre:</strong> {patient.names} {patient.lastname}</p>
-      <p><strong>Teléfono:</strong> {patient.telephone || '—'}</p>
-      <p><strong>Dirección:</strong> {patient.address || '—'}</p>
-      <p><strong>Correo:</strong> {patient.email || '—'}</p>
+      <Button variant="link" onClick={() => navigate(-1)}>
+        ← Volver
+      </Button>
 
-      <hr style={{ margin: '1rem 0' }} />
+      <Card className="shadow p-4 mb-4">
+        <h3>🧍 Datos del Paciente</h3>
 
-      {/* Sección de antecedentes */}
-      {editMode ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <textarea name="personal_history" value={patient.personal_history || ''} onChange={handleChange} placeholder="Antecedentes personales" />
-          <textarea name="family_history" value={patient.family_history || ''} onChange={handleChange} placeholder="Antecedentes familiares" />
-          <textarea name="allergy" value={patient.allergy || ''} onChange={handleChange} placeholder="Alergias" />
-          <textarea name="common_medicines" value={patient.common_medicines || ''} onChange={handleChange} placeholder="Medicamentos comunes" />
-          <input name="blood_type" value={patient.blood_type || ''} onChange={handleChange} placeholder="Tipo de sangre" />
-          <input name="genre" value={patient.genre || ''} onChange={handleChange} placeholder="Género" />
-          <input name="provincia" value={patient.provincia || ''} onChange={handleChange} placeholder="Provincia" />
-          <input name="ciudad" value={patient.ciudad || ''} onChange={handleChange} placeholder="Ciudad" />
-          <input name="parroquia" value={patient.parroquia || ''} onChange={handleChange} placeholder="Parroquia" />
-          <button onClick={handleSave}>Guardar</button>
-        </div>
-      ) : (
-        <div>
-          <p><strong>Antecedentes personales:</strong> {patient.personal_history || '—'}</p>
-          <p><strong>Antecedentes familiares:</strong> {patient.family_history || '—'}</p>
-          <p><strong>Alergias:</strong> {patient.allergy || '—'}</p>
-          <p><strong>Medicamentos comunes:</strong> {patient.common_medicines || '—'}</p>
-          <p><strong>Tipo de sangre:</strong> {patient.blood_type || '—'}</p>
-          <p><strong>Género:</strong> {patient.genre || '—'}</p>
-          <p><strong>Provincia:</strong> {patient.provincia || '—'}</p>
-          <p><strong>Ciudad:</strong> {patient.ciudad || '—'}</p>
-          <p><strong>Parroquia:</strong> {patient.parroquia || '—'}</p>
-        </div>
-      )}
+        <p><strong>Cédula:</strong> {patient.doc_id}</p>
+        <p><strong>Nombre:</strong> {patient.names} {patient.lastname}</p>
+        <p><strong>Teléfono:</strong> {patient.telephone || "—"}</p>
+        <p><strong>Dirección:</strong> {patient.address || "—"}</p>
+        <p><strong>Email:</strong> {patient.email || "—"}</p>
 
-      <button onClick={() => setEditMode(!editMode)} style={{ marginTop: '1rem' }}>
-        {editMode ? 'Cancelar' : 'Editar'}
-      </button>
+        <hr />
 
-      {message && (
-        <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>
-          {message}
-        </p>
-      )}
+        <h4>📌 Antecedentes</h4>
 
-      {/* Historial médico */}
-      <hr style={{ margin: '2rem 0' }} />
-      <h3>📋 Historial Médico</h3>
+        {editMode ? (
+          <div className="d-flex flex-column gap-2">
+            <textarea name="personal_history" value={patient.personal_history || ""} onChange={handleChange} className="form-control" placeholder="Antecedentes personales" />
+            <textarea name="family_history" value={patient.family_history || ""} onChange={handleChange} className="form-control" placeholder="Antecedentes familiares" />
+            <textarea name="allergy" value={patient.allergy || ""} onChange={handleChange} className="form-control" placeholder="Alergias" />
+            <textarea name="common_medicines" value={patient.common_medicines || ""} onChange={handleChange} className="form-control" placeholder="Medicamentos comunes" />
 
-      {encounters.length === 0 ? (
-        <p style={{ color: '#555' }}>No hay historias médicas registradas.</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-          <thead>
-            <tr style={{ background: '#f0f0f0', textAlign: 'left' }}>
-              <th style={{ padding: '0.5rem' }}>Fecha</th>
-              <th style={{ padding: '0.5rem' }}>Motivo</th>
-              <th style={{ padding: '0.5rem' }}>Médico</th>
-              <th style={{ padding: '0.5rem' }}>Presión</th>
-              <th style={{ padding: '0.5rem' }}>Pulso</th>
-              <th style={{ padding: '0.5rem' }}>Temp</th>
-              <th style={{ padding: '0.5rem' }}>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {encounters.map((e) => (
-              <tr key={e.encounter_id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '0.5rem' }}>{e.date || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>{e.reason_for_consultation || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>{e.doctor_name || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>{e.vital_signs?.presion_arterial || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>{e.vital_signs?.pulso_xmin || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>{e.vital_signs?.temperatura || '—'}</td>
-                <td style={{ padding: '0.5rem' }}>
-                  <button
-                    onClick={() => navigate(`/medico/pacientes/historia/${e.encounter_id}`)}
-                    style={{
-                      background: '#007bff',
-                      color: 'white',
-                      padding: '0.3rem 0.7rem',
-                      border: 'none',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    🔍 Ver Detalle
-                  </button>
-                </td>
+            <Button onClick={handleSave} variant="success">Guardar cambios</Button>
+          </div>
+        ) : (
+          <>
+            <p><strong>Antecedentes personales:</strong> {patient.personal_history || "—"}</p>
+            <p><strong>Antecedentes familiares:</strong> {patient.family_history || "—"}</p>
+            <p><strong>Alergias:</strong> {patient.allergy || "—"}</p>
+            <p><strong>Medicamentos comunes:</strong> {patient.common_medicines || "—"}</p>
+
+            <Button variant="primary" onClick={() => setEditMode(true)}>
+              Editar información
+            </Button>
+          </>
+        )}
+
+        {message && (
+          <Alert className="mt-3" variant={message.startsWith("✅") ? "success" : "danger"}>
+            {message}
+          </Alert>
+        )}
+      </Card>
+
+      {/* HISTORIAL DE HOSPITALIZACIONES */}
+      <Card className="shadow p-4 mb-4">
+        <h3>🏥 Historial de Hospitalizaciones</h3>
+
+        {hospitalizations.length === 0 ? (
+          <p className="text-muted">No existen hospitalizaciones registradas.</p>
+        ) : (
+          <Table bordered hover className="mt-3">
+            <thead>
+              <tr>
+                <th>Ingreso</th>
+                <th>Habitación</th>
+                <th>Razón</th>
+                <th>Estado</th>
+                <th>Alta</th>
+                <th>Acción</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {hospitalizations.map((h) => (
+                <tr key={h.admission_id}>
+                  <td>{h.fecha_ingreso} {h.hora_ingreso}</td>
+                  <td>{h.habitacion_asignada}</td>
+                  <td>{h.razon_ingreso}</td>
+                  <td>{h.estado_ingreso}</td>
+                  <td>{h.fecha_alta ? `${h.fecha_alta} ${h.hora_alta}` : "—"}</td>
+                  <td>
+                    <Button 
+                      size="sm"
+                      variant="info"
+                      onClick={() => navigate(`/medico/hospitalizaciondetalle/${h.admission_id}`)}
+                    >
+                      Ver Detalle
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
+
+      {/* HISTORIAL MÉDICO */}
+      <Card className="shadow p-4 mb-5">
+        <h3>📋 Historias Clínicas</h3>
+
+        {encounters.length === 0 ? (
+          <p className="text-muted">No hay historias clínicas registradas.</p>
+        ) : (
+          <Table bordered hover className="mt-3">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Motivo</th>
+                <th>Médico</th>
+                <th>Presión</th>
+                <th>Pulso</th>
+                <th>Temp</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {encounters.map((e) => (
+                <tr key={e.encounter_id}>
+                  <td>{e.date || "—"}</td>
+                  <td>{e.reason_for_consultation || "—"}</td>
+                  <td>{e.doctor_name || "—"}</td>
+                  <td>{e.vital_signs?.presion_arterial || "—"}</td>
+                  <td>{e.vital_signs?.pulso_xmin || "—"}</td>
+                  <td>{e.vital_signs?.temperatura || "—"}</td>
+                  <td>
+                    <Button 
+                      size="sm"
+                      onClick={() => navigate(`/medico/pacientes/historia/${e.encounter_id}`)}
+                    >
+                      Ver Detalle
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
     </div>
   )
 }

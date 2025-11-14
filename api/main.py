@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from typing import Annotated
 import bcrypt
 from fastapi import Body
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import json
 
 from fastapi.responses import JSONResponse
@@ -1173,3 +1173,492 @@ def get_available_hours(doctor_id: int, date: str):
     except Exception as e:
         print("❌ Error obteniendo horas disponibles:", str(e))
         raise HTTPException(status_code=500, detail=f"Error obteniendo horas disponibles: {str(e)}")
+
+@app.get("/dashboard/patients/count")
+def count_patients(today: bool = False):
+    """
+    Devuelve el número total de pacientes o solo los registrados hoy.
+    GET /dashboard/patients/count?today=true
+    """
+    try:
+        if today:
+            today_start = datetime.combine(date.today(), datetime.min.time())
+            tomorrow_start = today_start + timedelta(days=1)
+
+            # ⚙️ Filtramos por rango del día
+            response = (
+                supabase.table("patients")
+                .select("patient_id", count="exact")
+                .gte("created_at", today_start.isoformat())
+                .lt("created_at", tomorrow_start.isoformat())
+                .execute()
+            )
+        else:
+            response = supabase.table("patients").select("patient_id", count="exact").execute()
+
+        return {"count": response.count or 0}
+
+    except Exception as e:
+        print("❌ Error en /dashboard/patients/count:", e)
+        raise HTTPException(status_code=500, detail=f"Error al contar pacientes: {str(e)}")
+
+
+@app.get("/dashboard/appointments/today")
+def count_appointments_today():
+    """
+    Devuelve la cantidad de citas programadas para la fecha actual.
+    GET /dashboard/appointments/today
+    """
+    try:
+        today_str = date.today().isoformat()
+
+        response = (
+            supabase.table("appointments")
+            .select("appointment_id", count="exact")
+            .eq("date", today_str)
+            .execute()
+        )
+
+        return {"count": response.count or 0}
+
+    except Exception as e:
+        print("❌ Error en /dashboard/appointments/today:", e)
+        raise HTTPException(status_code=500, detail=f"Error al contar citas: {str(e)}")
+
+# 🧩 Obtener todas las habitaciones
+@app.get("/rooms")
+def get_all_rooms():
+    """
+    Devuelve todas las habitaciones registradas.
+    """
+    try:
+        response = supabase.table("rooms").select("*").order("room_id", desc=False).execute()
+        return response.data
+    except Exception as e:
+        print("❌ Error al obtener habitaciones:", e)
+        raise HTTPException(status_code=500, detail=f"Error al obtener habitaciones: {str(e)}")
+
+
+# 🧩 Obtener una habitación específica
+@app.get("/rooms/{room_id}")
+def get_room_by_id(room_id: int):
+    """
+    Devuelve los datos de una habitación específica.
+    """
+    try:
+        response = supabase.table("rooms").select("*").eq("room_id", room_id).execute()
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Habitación no encontrada")
+        return response.data[0]
+    except Exception as e:
+        print("❌ Error al obtener habitación:", e)
+        raise HTTPException(status_code=500, detail=f"Error al obtener habitación: {str(e)}")
+
+
+# 🧩 Actualizar estado de una habitación
+@app.put("/rooms/{room_id}/state")
+def update_room_state(room_id: int, body: dict):
+    """
+    Actualiza el estado y subestado (present_state) de una habitación.
+    Ejemplo body:
+    {
+        "state": "Ocupada",
+        "present_state": "En uso"
+    }
+    """
+    try:
+        update_data = {
+            "state": body.get("state"),
+            "present_state": body.get("present_state"),
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        response = supabase.table("rooms").update(update_data).eq("room_id", room_id).execute()
+        return {"message": "Estado actualizado correctamente", "data": response.data}
+    except Exception as e:
+        print("❌ Error al actualizar habitación:", e)
+        raise HTTPException(status_code=500, detail=f"Error al actualizar habitación: {str(e)}")
+    
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
+from datetime import datetime
+
+@app.post("/admissions")
+def create_admission(body: dict):
+    try:
+        # ===============================
+        # 1. Obtener auth_id que viene del frontend
+        # ===============================
+        auth_id = body.get("created_by")
+
+        if not auth_id:
+            raise HTTPException(status_code=400, detail="created_by es requerido (auth_id).")
+
+        # ===============================
+        # 2. Obtener user_id (BIGINT) desde user_profile
+        # ===============================
+        profile = (
+            supabase.table("user_profile")
+            .select("user_id")
+            .eq("auth_id", auth_id)
+            .single()
+            .execute()
+        )
+
+        if not profile.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No existe un perfil asociado al usuario autenticado."
+            )
+
+        creator_user_id = profile.data["user_id"]
+
+        # ===============================
+        # 3. Obtener room_id desde el body
+        # ===============================
+        room_id = body.get("habitacion_asignada")
+
+        if not room_id:
+            raise HTTPException(status_code=400, detail="habitacion_asignada es requerida.")
+
+        # ===============================
+        # 4. Preparar datos de admisión
+        # ===============================
+        admission_data = {
+            **body,
+            "created_by": creator_user_id,  # BIGINT correcto
+            "estado_ingreso": "activo",
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        # ===============================
+        # 5. Insertar admisión
+        # ===============================
+        admission_res = (
+            supabase.table("admissions")
+            .insert(admission_data)
+            .execute()
+        )
+
+        # ===============================
+        # 6. Marcar habitación como OCUPADA
+        # ===============================
+        supabase.table("rooms").update({
+            "state": "Ocupada",
+            "present_state": "En uso",
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("room_id", room_id).execute()
+
+        return {
+            "message": "Admisión creada correctamente.",
+            "data": admission_res.data
+        }
+
+    except Exception as e:
+        print("❌ Error al crear admisión:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.get("/admissions/active")
+def get_active_admissions():
+    try:
+        response = supabase.table("admissions").select("*").eq("estado_ingreso", "Activo").execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/admissions/{admission_id}/diagnostico")
+def update_diagnostico(admission_id: int, body: dict):
+    try:
+        res = supabase.table("admissions").update(
+            {
+                "diagnostico_ingreso": body.get("diagnostico_ingreso"),
+                "updated_at": datetime.utcnow().isoformat()
+            }
+        ).eq("admission_id", admission_id).execute()
+
+        return {"message": "Diagnóstico registrado.", "data": res.data}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
+from datetime import datetime
+
+
+
+@app.get("/doctors/all")
+def get_all_doctors():
+    """
+    Retorna la lista completa de doctores registrados.
+    """
+    try:
+        query = supabase.table("doctors").select("*").order("nombres").execute()
+        return JSONResponse(content=query.data, status_code=200)
+    except Exception as e:
+        print("❌ Error obteniendo doctores:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+@app.get("/admissions/medico/{doctor_profile_id}")
+def get_admissions_by_doctor(doctor_profile_id: int):
+    try:
+        admissions = (
+            supabase.table("admissions")
+            .select("""
+                admission_id,
+                patient_id,
+                fecha_ingreso,
+                hora_ingreso,
+                razon_ingreso,
+                estado_ingreso,
+                habitacion_asignada,
+                cama_asignada,
+                diagnostico_ingreso,
+                patients(*)
+            """)
+            .eq("doctor_profile_id", doctor_profile_id)
+            .eq("estado_ingreso", "activo")
+            .order("fecha_ingreso")
+            .execute()
+        )
+
+        return admissions.data
+
+    except Exception as e:
+        print("❌ Error hospitalizaciones:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/doctor/by_auth/{auth_id}")
+def get_doctor_by_auth(auth_id: str):
+
+    try:
+        # 1️⃣ Obtener user_id desde user_profile
+        profile = (
+            supabase.table("user_profile")
+            .select("user_id")
+            .eq("auth_id", auth_id)
+            .single()
+            .execute()
+        )
+
+        if not profile.data:
+            raise HTTPException(status_code=404, detail="Perfil no encontrado.")
+
+        user_id = profile.data["user_id"]
+
+        # 2️⃣ Buscar doctor en la tabla REAL (doctors)
+        doctor = (
+            supabase.table("doctors")
+            .select("doctors_id, especialidad_id")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+
+        if not doctor.data:
+            raise HTTPException(status_code=404, detail="Doctor no encontrado.")
+
+        return {
+            "user_id": user_id,
+            "doctor_profile_id": doctor.data["doctors_id"],        # 👈 CAMPO REAL
+            "specialty_id": doctor.data["especialidad_id"]         # 👈 CAMPO REAL
+        }
+
+    except Exception as e:
+        print("❌ Error doctor por auth:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admissions/{admission_id}")
+def get_admission_by_id(admission_id: int):
+    try:
+        adm = (
+            supabase.table("admissions")
+            .select("""
+                *,
+                patients(names, lastname, doc_id)
+            """)
+            .eq("admission_id", admission_id)
+            .single()
+            .execute()
+        )
+
+        return adm.data
+
+    except Exception as e:
+        print("❌ Error:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@app.put("/admissions/{admission_id}/alta")
+def dar_alta_medica(admission_id: int, body: dict):
+
+    motivo_alta = body.get("motivo_alta")
+    if not motivo_alta:
+        raise HTTPException(status_code=400, detail="motivo_alta es requerido")
+
+    fecha = datetime.utcnow().date()
+    hora = datetime.utcnow().time().replace(microsecond=0)
+
+    try:
+        # 1️⃣ Obtener datos de la admisión (especialmente la habitación)
+        adm = (
+            supabase.table("admissions")
+            .select("habitacion_asignada")
+            .eq("admission_id", admission_id)
+            .single()
+            .execute()
+        )
+
+        if not adm.data:
+            raise HTTPException(status_code=404, detail="Admisión no encontrada.")
+
+        room_id = adm.data["habitacion_asignada"]
+
+        # 2️⃣ Actualizar admisión con alta médica
+        supabase.table("admissions").update({
+            "estado_ingreso": "alta_medica",
+            "fecha_alta": str(fecha),
+            "hora_alta": str(hora),
+            "motivo_alta": motivo_alta
+        }).eq("admission_id", admission_id).execute()
+
+        # 3️⃣ Cambiar estado de habitación → Limpieza
+        supabase.table("rooms").update({
+            "state": "Limpieza",
+            "present_state": "Limpieza",
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("room_id", room_id).execute()
+
+        return {"message": "Alta médica registrada y habitación marcada para limpieza."}
+
+    except Exception as e:
+        print("❌ Error en alta:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admissions/by_patient/{patient_id}")
+def get_admissions_by_patient(patient_id: int):
+    try:
+        admissions = (
+            supabase.table("admissions")
+            .select("""
+                admission_id,
+                fecha_ingreso,
+                hora_ingreso,
+                razon_ingreso,
+                diagnostico_ingreso,
+                estado_ingreso,
+                habitacion_asignada,
+                fecha_alta,
+                hora_alta,
+                motivo_alta
+            """)
+            .eq("patient_id", patient_id)
+            .order("fecha_ingreso")
+            .execute()
+        )
+
+        return admissions.data
+
+    except Exception as e:
+        print("❌ Error hospitalizaciones:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/encounters/patient/{patient_id}/brief")
+def get_encounters_brief(patient_id: int):
+    try:
+        data = (
+            supabase.table("encounters")
+            .select("""
+                encounter_id,
+                date,
+                doctors:doctor_id(
+                    nombres,
+                    apellidos,
+                    especialidad_id,
+                    specialties:specialties(especialidad_id, name)
+                )
+            """)
+            .eq("patient_id", patient_id)
+            .order("date", desc=True)
+            .execute()
+        )
+
+        result = []
+
+        for e in data.data:
+            doctor = e.get("doctors", {})
+            specialty = doctor.get("specialties", {})
+
+            result.append({
+                "encounter_id": e["encounter_id"],
+                "date": e["date"],
+                "doctor_name": f"{doctor.get('nombres', '')} {doctor.get('apellidos', '')}",
+                "specialty": specialty.get("name", "No definida")
+            })
+
+        return result
+
+    except Exception as e:
+        print("❌ Error historial breve:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/appointments/calendar/{doctor_id}")
+def get_calendar_by_doctor(doctor_id: int):
+    """
+    Retorna las citas del calendario SOLO del médico indicado.
+    """
+    try:
+        query = (
+            supabase.table("appointments")
+            .select("""
+                appointment_id,
+                date,
+                time,
+                status,
+                reason,
+                patients(doc_id, names, lastname),
+                doctors(nombres, apellidos)
+            """)
+            .eq("doctor_profile_id", doctor_id)
+            .order("date")
+            .execute()
+        )
+
+        events = []
+
+        for a in query.data:
+
+            # -----------------------------------------
+            #  FIX: extraer solo YYYY-MM-DD de la fecha
+            # -----------------------------------------
+            date_only = a["date"].split("T")[0]   # "2025-11-18"
+            time_str = a["time"]                  # "14:30:00"
+
+            start_iso = f"{date_only}T{time_str}"
+
+            events.append({
+                "id": a["appointment_id"],
+                "title": (
+                    f"{a['patients']['names']} {a['patients']['lastname']} "
+                    f"con Dr. {a['doctors']['nombres']} {a['doctors']['apellidos']}"
+                ),
+                "start": start_iso,
+                "status": a["status"],
+                "reason": a["reason"],
+                "doc_id": a["patients"]["doc_id"],
+                "patient_id": a["patients"]["doc_id"],
+            })
+
+        return events
+
+    except Exception as e:
+        print("❌ Error en calendario:", e)
+        raise HTTPException(status_code=500, detail=str(e))

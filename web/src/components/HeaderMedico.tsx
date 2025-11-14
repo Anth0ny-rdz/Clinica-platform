@@ -35,16 +35,15 @@ export default function HeaderMedico() {
       </div>
 
       <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <Link to="/medico/citas" style={{ color: 'white', textDecoration: 'none' }}>
-          Citas
-        </Link>
         <Link to="/medico/pacientes" style={{ color: 'white', textDecoration: 'none' }}>
           Pacientes
         </Link>
         <Link to="/medico/calendario" style={{ color: 'white', textDecoration: 'none' }}>
           Calendario
         </Link>
-      
+        <Link to="/medico/HospitalizacionesMedico" style={{ color: 'white', textDecoration: 'none' }}>
+          Hospitalizaciones
+        </Link>
 
 
         {/* Botón de cerrar sesión */}
