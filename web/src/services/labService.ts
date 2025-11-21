@@ -51,3 +51,11 @@ export async function getSignedResultUrl(item_id: number) {
   if (!res.ok) throw new Error("No se pudo obtener URL firmada");
   return await res.json();
 }
+
+export async function fetchCompletedExams(filters: any = {}) {
+  const params = new URLSearchParams(filters).toString();
+
+  const res = await fetch(`${API_URL}/lab/completados?${params}`);
+  if (!res.ok) throw new Error("Error cargando exámenes completados");
+  return res.json();
+}

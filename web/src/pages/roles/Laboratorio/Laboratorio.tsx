@@ -7,6 +7,7 @@ import Pendientes from "./Pendientes";
 import DetalleItem from "./DetalleItem";
 import SubirResultado from "./SubirResultado";
 import DashboardLaboratorio from "./DashboardLaboratorio"
+import Completados from "./Completados";
 
 
 export default function LabLayout() {
@@ -21,6 +22,7 @@ export default function LabLayout() {
             <Route path="pendientes" element={<Pendientes />} />
             <Route path="item/:item_id" element={<DetalleItem />} />
             <Route path="item/:item_id/subir" element={<SubirResultado />} />
+            <Route path="completados" element={<Completados />} />
           </Routes>
         </main>
         </div>

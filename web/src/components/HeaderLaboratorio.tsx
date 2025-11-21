@@ -41,6 +41,9 @@ export default function HeaderAdmin() {
         <Link to="/laboratorio/pendientes" style={{ color: 'white', textDecoration: 'none' }}>
           Examenes Pendientes
         </Link>
+        <Link to="/laboratorio/completados" style={{ color: 'white', textDecoration: 'none' }}>
+          Ver Examenes Completados
+        </Link>
 
 
 

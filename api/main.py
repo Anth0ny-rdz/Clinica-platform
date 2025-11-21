@@ -1857,7 +1857,7 @@ def get_exam_signed_url(item_id: int):
 
         signed = supabase.storage\
             .from_("exam-results")\
-            .create_signed_url(file_url, 3600)  # 1 hora
+            .create_signed_url(file_url, 60)  # 1 minuto
 
         return {"url": signed["signedURL"]}
 
@@ -2356,7 +2356,7 @@ def get_lab_item(item_id: int):
 
             signed = supabase.storage \
                 .from_("exam-results") \
-                .create_signed_url(file_url, 3600 * 24 * 7)  # 1 semana
+                .create_signed_url(file_url, 60)  # 1 minuto
 
             result_url = signed.get("signedURL")
 
@@ -2384,4 +2384,57 @@ def get_lab_item(item_id: int):
 
     except Exception as e:
         print("❌ Error get_lab_item:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/lab/completados")
+def get_completed_exams(
+    date: str | None = None,
+    examtype: str | None = None,
+    patient: str | None = None,
+    doctor: str | None = None
+):
+    try:
+        query = supabase.table("order_exam_items").select(
+            """
+            item_id,
+            exam_type:examtype_id(name),
+            exam_results(file_url, uploaded_at),
+            exam_orders:order_id(
+                doctors(nombres, apellidos),
+                patients(names, lastname)
+            )
+            """
+        ).eq("status", "completado")
+
+        # ---- FILTROS DINÁMICOS ----
+
+        # 📅 FILTRO POR FECHA
+        if date:
+            query = query.filter("exam_results.uploaded_at", "ilike", f"%{date}%")
+
+        # 🔬 FILTRO POR TIPO DE EXAMEN
+        if examtype:
+            query = query.filter("examtype_id.name", "ilike", f"%{examtype}%")
+
+        # 🧑‍🤝‍🧑 FILTRO POR PACIENTE
+        if patient:
+            query = query.filter("order_id.patients.names", "ilike", f"%{patient}%")
+
+        # 👨‍⚕️ FILTRO POR DOCTOR
+        if doctor:
+            query = query.filter("order_id.doctors.nombres", "ilike", f"%{doctor}%")
+
+        res = query.execute()
+        
+        # 🧹 Filtrar solo items donde exam_type NO sea None (relación válida)
+        filtered_data = [
+            item for item in res.data 
+            if item.get("exam_type") is not None
+        ]
+        
+        return filtered_data
+
+    except Exception as e:
+        print("❌ Error completados:", e)
         raise HTTPException(status_code=500, detail=str(e))
