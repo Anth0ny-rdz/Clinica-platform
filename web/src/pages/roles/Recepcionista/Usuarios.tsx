@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
-import { fetchRoles, createUser, type Role, type NewUserData } from '@/services/userService'
+import { fetchRoles, createUser, createPatient, type Role, type NewPatientData } from '@/services/userService'
 import { useAuth } from '@/context/AuthContext'
 
 export default function Usuarios() {
-  const { user } = useAuth() // 👈 obtenemos usuario y su rol actual
+  const { user } = useAuth()
   const [roles, setRoles] = useState<Role[]>([])
-  const [form, setForm] = useState<NewUserData>({
+
+  // 🔵 Nuevo: switch para seguro médico
+  const [tieneSeguro, setTieneSeguro] = useState(false)
+
+  // 🔵 Formulario específico para PACIENTES
+  const [form, setForm] = useState<NewPatientData>({
     id_number: '',
     name: '',
     lastname: '',
@@ -15,13 +20,15 @@ export default function Usuarios() {
     address: '',
     birth_date: '',
     rol_id: 0,
+    seguro_medico: null,
   })
+
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
-  const puedeAsignarRol = user?.rol === 'Administrador' // 👈 solo admin puede elegir el rol
+  const puedeAsignarRol = user?.rol === 'Administrador'
 
-  // Cargar roles desde la BD
+  // Cargar roles
   useEffect(() => {
     const loadRoles = async () => {
       try {
@@ -34,7 +41,7 @@ export default function Usuarios() {
     loadRoles()
   }, [])
 
-  // Si es recepcionista, fijar automáticamente el rol "Paciente"
+  // Si no es admin, asignar Paciente automáticamente
   useEffect(() => {
     if (!puedeAsignarRol && roles.length > 0) {
       const pacienteRole = roles.find(r =>
@@ -46,6 +53,7 @@ export default function Usuarios() {
     }
   }, [roles, puedeAsignarRol])
 
+  // Cambios del formulario
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setForm(prev => ({
@@ -54,7 +62,17 @@ export default function Usuarios() {
     }))
   }
 
-  // 🔹 Validación de cédula ecuatoriana
+  // Switch seguro médico
+  const handleSeguroSwitch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked
+    setTieneSeguro(checked)
+
+    if (!checked) {
+      setForm(prev => ({ ...prev, seguro_medico: null }))
+    }
+  }
+
+  // Validación de cédula ecuatoriana
   function validarCedulaEcuatoriana(cedula: string): boolean {
     if (!/^\d{10}$/.test(cedula)) return false
     const provincia = parseInt(cedula.slice(0, 2))
@@ -71,12 +89,13 @@ export default function Usuarios() {
     return calculado === verificador
   }
 
+  // Enviar formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
     setLoading(true)
 
-    // Validaciones manuales
+    // Validaciones
     if (!validarCedulaEcuatoriana(form.id_number)) {
       setMessage('⚠️ La cédula ingresada no es válida.')
       setLoading(false)
@@ -94,8 +113,15 @@ export default function Usuarios() {
     }
 
     try {
-      const result = await createUser(form)
+      const dataToSend = {
+        ...form,
+        seguro_medico: tieneSeguro ? form.seguro_medico : 'Ninguno',
+      }
+
+      const result = await createPatient(dataToSend)
+
       setMessage(`✅ Usuario creado correctamente (Auth ID: ${result.auth_id})`)
+
       setForm({
         id_number: '',
         name: '',
@@ -106,7 +132,9 @@ export default function Usuarios() {
         address: '',
         birth_date: '',
         rol_id: 0,
+        seguro_medico: null,
       })
+      setTieneSeguro(false)
     } catch (error) {
       console.error(error)
       setMessage('❌ Error al crear usuario.')
@@ -134,41 +162,31 @@ export default function Usuarios() {
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         }}
       >
-        {/* 🔹 Nuevo campo de cédula */}
-        <input
-          name="id_number"
-          placeholder="Cédula"
-          value={form.id_number}
-          onChange={handleChange}
-          required
-          maxLength={10}
-        />
-
+        <input name="id_number" placeholder="Cédula" value={form.id_number} onChange={handleChange} required maxLength={10} />
         <input name="name" placeholder="Nombre" value={form.name} onChange={handleChange} required />
         <input name="lastname" placeholder="Apellido" value={form.lastname} onChange={handleChange} required />
         <input type="email" name="email" placeholder="Correo electrónico" value={form.email} onChange={handleChange} required />
-        <input
-          type="password"
-          name="password"
-          placeholder="Contraseña"
-          value={form.password}
-          onChange={handleChange}
-          required
-          minLength={6}
-        />
-        <input
-          type="tel"
-          name="telephone"
-          placeholder="Teléfono (10 dígitos)"
-          value={form.telephone}
-          onChange={handleChange}
-          pattern="\d{10}"
-          required
-        />
+        <input type="password" name="password" placeholder="Contraseña" value={form.password} onChange={handleChange} required minLength={6} />
+        <input type="tel" name="telephone" placeholder="Teléfono (10 dígitos)" value={form.telephone} onChange={handleChange} pattern="\d{10}" required />
         <input name="address" placeholder="Dirección" value={form.address} onChange={handleChange} required minLength={5} />
         <input type="date" name="birth_date" value={form.birth_date} onChange={handleChange} required />
 
-        {/* Si es recepcionista, el rol se asigna automáticamente */}
+        {/* Switch seguro médico */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>¿Tiene seguro médico?</span>
+          <input type="checkbox" checked={tieneSeguro} onChange={handleSeguroSwitch} />
+        </label>
+
+        {tieneSeguro && (
+          <input
+            name="seguro_medico"
+            placeholder="Nombre del seguro médico"
+            value={form.seguro_medico ?? ''}
+            onChange={handleChange}
+            required={tieneSeguro}
+          />
+        )}
+
         {puedeAsignarRol ? (
           <select name="rol_id" value={form.rol_id} onChange={handleChange} required>
             <option value={0}>Seleccionar rol...</option>

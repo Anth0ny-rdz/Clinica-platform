@@ -62,7 +62,14 @@ export default function DetallePaciente() {
     <div className="container mt-4">
 
       <Button variant="link" onClick={() => navigate(-1)}>
-        ← Volver
+    ← Volver
+      </Button>
+
+      <Button 
+        variant="success"
+        onClick={() => navigate(`/medico/pacientes/${patient.patient_id}/nueva-historia`)}
+      >
+        ➕ Nueva Historia Clínica
       </Button>
 
       <Card className="shadow p-4 mb-4">

@@ -18,6 +18,16 @@ export interface NewUserData {
   rol_id: number
 }
 
+export interface NewPatientData extends NewUserData {
+  id_number: string
+  name: string
+  lastname: string
+  telephone: string
+  address: string
+  birth_date: string
+  seguro_medico: string | null
+}
+
 export async function fetchRoles(): Promise<Role[]> {
   const { data, error } = await supabase.from('roles').select('roleid, name').order('name')
   if (error) throw error
@@ -35,6 +45,22 @@ export async function createUser(newUser: NewUserData) {
     console.error('❌ Error al crear usuario:', errText)
     throw new Error(errText)
   }
+  return await response.json()
+}
+
+export async function createPatient(newPatient: NewPatientData) {
+  const response = await fetch('http://127.0.0.1:8000/create_user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newPatient),
+  })
+
+  if (!response.ok) {
+    const errText = await response.text()
+    console.error('❌ Error al crear paciente:', errText)
+    throw new Error(errText)
+  }
+
   return await response.json()
 }
 

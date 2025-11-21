@@ -15,7 +15,7 @@
     "@fullcalendar/interaction": "^6.1.19",
     "@fullcalendar/react": "^6.1.19",
     "@fullcalendar/timegrid": "^6.1.19",
-    "@supabase/supabase-js": "^2.75.0",
+    "@supabase/supabase-js": "^2.84.0",
     "@tailwindcss/vite": "^4.1.17",
     "axios": "^1.13.2",
     "bootstrap": "^5.3.8",

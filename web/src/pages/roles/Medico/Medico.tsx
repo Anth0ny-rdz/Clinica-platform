@@ -13,6 +13,11 @@ import DetalleHistoria from './DetalleHistoria'
 import HospitalizacionesMedico from './HospitalizacionesMedico'
 import HospitalizacionDetalle from './HospitalizacionDetalle'
 
+import DetalleExamen from './DetalleExamen'
+import SolicitarExamen from './SolicitarExamen'
+import DetalleOrdenExamen from './DetalleOrdenExamen'
+import ResultadoExamen from './ResultadoExamen'
+import DashboardMedico from './DashboardMedico'
 export default function MedicoLayout() {
   return (
       <ProtectedRoute>
@@ -21,6 +26,7 @@ export default function MedicoLayout() {
           <HeaderMedico />
           <main style={{ padding: '2rem' }}>
             <Routes>
+              <Route index element={<DashboardMedico />} />
               <Route path="pacientes" element={<Pacientes />} />
               <Route path="pacientes/:doc_id" element={<DetallePaciente />} />
               <Route path="pacientes/:patient_id/nueva-historia" element={<NuevaHistoria />} />
@@ -29,6 +35,10 @@ export default function MedicoLayout() {
               <Route path="calendario" element={<CalendarioCitas />} />  {/* 👈 nuevo */}
               <Route path="hospitalizacionesmedico" element={<HospitalizacionesMedico />} />
               <Route path="hospitalizaciondetalle/:admission_id" element={<HospitalizacionDetalle />} />
+              <Route path="examenes/detalle/:encounter_id" element={<DetalleExamen />} />
+              <Route path="examenes/nuevo/:encounter_id" element={<SolicitarExamen/>}  />
+              <Route path="examenes/orden/:order_id" element={<DetalleOrdenExamen />} />
+              <Route path="examenes/resultado/:item_id" element={<ResultadoExamen />} />
 
             </Routes>
           </main>

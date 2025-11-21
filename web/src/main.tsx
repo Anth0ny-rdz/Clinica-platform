@@ -16,6 +16,7 @@ import Medico from './pages/roles/Medico/Medico'
 import Enfermeria from './pages/roles/Enfermeria'
 import Paciente from './pages/roles/Paciente'
 import Recepcionista from './pages/roles/Recepcionista/Recepcionista'
+import Laboratorio from './pages/roles/Laboratorio/Laboratorio'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -84,7 +85,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             element={
               <ProtectedRoute>
                 <RoleProtectedRoute allowedRoles={['Laboratorio']}>
-                  <Paciente />
+                  <Laboratorio />
                 </RoleProtectedRoute>
               </ProtectedRoute>
             }

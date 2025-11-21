@@ -1,30 +1,38 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fetchEncounterDetail } from '@/services/encounterService'
+import { fetchExamOrdersByEncounter } from '@/services/examService'
+
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import { Card, Table, Button, Alert } from 'react-bootstrap'
 
 export default function DetalleHistoria() {
   const { encounter_id } = useParams()
   const navigate = useNavigate()
+
   const [encounter, setEncounter] = useState<any>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const [examOrders, setExamOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
   const pdfRef = useRef<HTMLDivElement>(null)
 
-  // 🔹 Cargar historia médica
+  // ===========================
+  //   CARGAR HISTORIA + EXÁMENES
+  // ===========================
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
+
         const data = await fetchEncounterDetail(Number(encounter_id))
-
-        // 🔄 Ajustar naming del backend (vital_signs → vitals)
-        if (data?.vital_signs) {
-          data.vitals = data.vital_signs
-        }
-
+        if (data?.vital_signs) data.vitals = data.vital_signs
         setEncounter(data)
+
+        const exams = await fetchExamOrdersByEncounter(Number(encounter_id))
+        setExamOrders(exams)
+
       } catch (err: any) {
         setMessage(err.message)
       } finally {
@@ -34,7 +42,9 @@ export default function DetalleHistoria() {
     loadData()
   }, [encounter_id])
 
-  // 🔹 Exportar a PDF
+  // ===========================
+  //   EXPORTAR PDF
+  // ===========================
   const handleExportPDF = async () => {
     if (!pdfRef.current) return
     const input = pdfRef.current
@@ -54,34 +64,56 @@ export default function DetalleHistoria() {
 
   return (
     <div style={{ maxWidth: 900, margin: '2rem auto' }}>
+
+      {/* BOTONES SUPERIORES */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <button onClick={() => navigate(-1)}>← Volver</button>
-        <button
-          onClick={handleExportPDF}
-          style={{
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            cursor: 'pointer',
-          }}
-        >
-          📄 Exportar como PDF
-        </button>
+
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {/* NUEVO EXAMEN */}
+          <button
+            onClick={() => navigate(`/medico/examenes/nuevo/${encounter_id}`)}
+            style={{
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            ➕ Solicitar Examen
+          </button>
+
+          {/* EXPORTAR PDF */}
+          <button
+            onClick={handleExportPDF}
+            style={{
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            📄 Exportar PDF
+          </button>
+        </div>
       </div>
 
-      {/* Contenido a exportar */}
+      {/* CONTENIDO EXPORTABLE */}
       <div
         ref={pdfRef}
         style={{
           backgroundColor: 'white',
           padding: '2rem',
           borderRadius: '1rem',
-          boxShadow: '0 0 10px rgba(0,0,0,0.1)',
+          boxShadow: '0 0 10px rgba(0,0,0,0.1)'
         }}
       >
         <h2 style={{ textAlign: 'center' }}>Historia Médica</h2>
+
         <p><strong>Fecha:</strong> {encounter.date}</p>
         <p><strong>Hora:</strong> {encounter.hour || '—'}</p>
         <p><strong>Médico tratante:</strong> {encounter.doctor_name || '—'}</p>
@@ -129,6 +161,53 @@ export default function DetalleHistoria() {
         ) : (
           <p>No se registraron signos vitales.</p>
         )}
+
+        {/* =========================== */}
+        {/* SECCIÓN DE ORDENES DE EXAMEN */}
+        {/* =========================== */}
+
+        <hr style={{ margin: '2rem 0' }} />
+        <h3>🧪 Órdenes de Exámenes Asociadas</h3>
+
+        {examOrders.length === 0 ? (
+          <p className="text-muted">No existen órdenes de examen vinculadas a esta historia.</p>
+        ) : (
+          <Card className="shadow p-3 mt-3">
+            <Table bordered hover>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Fecha</th>
+                  <th>Prioridad</th>
+                  <th>Items</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {examOrders.map((order) => (
+                  <tr key={order.order_id}>
+                    <td>{order.order_id}</td>
+                    <td>{order.created_at}</td>
+                    <td>{order.priority}</td>
+                    <td>{order.items_count} exámenes</td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() =>
+                          navigate(`/medico/examenes/orden/${order.order_id}`)
+                        }
+                      >
+                        Ver Detalle
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card>
+        )}
+
       </div>
     </div>
   )

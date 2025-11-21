@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import LogoutButton from '@/components/LogoutButton'
 
-export default function HeaderMedico() {
+export default function HeaderAdmin() {
   const { user } = useAuth()
 
   return (
@@ -17,7 +17,7 @@ export default function HeaderMedico() {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <h2 style={{ margin: 0 }}>Panel de Médico</h2>
+        <h2 style={{ margin: 0 }}>Panel de Administración</h2>
         {user?.email && (
           <span
             style={{
@@ -35,18 +35,13 @@ export default function HeaderMedico() {
       </div>
 
       <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <Link to="/medico" style={{ color: 'white', textDecoration: 'none' }}>
+        <Link to="/laboratorio" style={{ color: 'white', textDecoration: 'none' }}>
           Inicio
         </Link>
-        <Link to="/medico/pacientes" style={{ color: 'white', textDecoration: 'none' }}>
-          Pacientes
+        <Link to="/laboratorio/pendientes" style={{ color: 'white', textDecoration: 'none' }}>
+          Examenes Pendientes
         </Link>
-        <Link to="/medico/calendario" style={{ color: 'white', textDecoration: 'none' }}>
-          Calendario
-        </Link>
-        <Link to="/medico/HospitalizacionesMedico" style={{ color: 'white', textDecoration: 'none' }}>
-          Hospitalizaciones
-        </Link>
+
 
 
         {/* Botón de cerrar sesión */}

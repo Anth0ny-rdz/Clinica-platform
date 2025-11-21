@@ -31,18 +31,27 @@ export default function Login() {
         case "Administrador":
           navigate("/admin")
           break
+
         case "Médico":
           navigate("/medico")
           break
+
         case "Enfermeria":
           navigate("/enfermeria")
           break
+
         case "Recepcionista / Asistente administrativo":
           navigate("/recepcionista")
           break
+
         case "Paciente":
           navigate("/paciente")
           break
+
+        case "Laboratorio":
+          navigate("/laboratorio")
+          break
+          
         default:
           setError(`Rol desconocido: ${authUser.rol}`)
       }

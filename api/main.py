@@ -4,11 +4,12 @@ from pydantic import BaseModel, EmailStr, Field
 from supabase import create_client
 import os
 from dotenv import load_dotenv
-from typing import Annotated
+from typing import Annotated, Optional
 import bcrypt
 from fastapi import Body
 from datetime import datetime, timedelta, date
 import json
+
 
 from fastapi.responses import JSONResponse
 
@@ -58,6 +59,8 @@ class UserCreate(BaseModel):
     address: Annotated[str, Field(min_length=5)]
     birth_date: Annotated[str, Field(pattern=r'^\d{4}-\d{2}-\d{2}$')]
     rol_id: int
+
+    seguro_medico: Optional[str] = None
 
 
 @app.post("/create_user")
@@ -121,6 +124,7 @@ def create_user(user: UserCreate):
                 "address": user.address,
                 "telephone": user.telephone,
                 "email": user.email,
+                "seguro_medico": user.seguro_medico,
                 # Campos clínicos aún vacíos
                 "entry_date": None,
                 "entry_hour": None,
@@ -1104,8 +1108,9 @@ def get_encounters_by_patient(patient_id: int):
 @app.get("/doctors/{doctor_id}/available-hours")
 def get_available_hours(doctor_id: int, date: str):
     """
-    Devuelve las horas disponibles de un médico según su horario JSONB (en español con inicio/fin/activo)
-    y las citas ya agendadas.
+    Devuelve las horas disponibles de un médico según su horario y citas.
+    Corrige formato distinto entre horas del horario ("14:30")
+    y horas ocupadas ("14:30:00").
     """
     import datetime
 
@@ -1125,12 +1130,11 @@ def get_available_hours(doctor_id: int, date: str):
 
         horario_json = doctor["horario_atencion"]
 
-        # 2️⃣ Convertir la fecha a nombre del día en español
+        # 2️⃣ Obtener día de la semana
         dias_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
         fecha_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
         dia_semana = dias_es[fecha_obj.weekday()]
 
-        # 3️⃣ Buscar configuración del día
         dia_data = horario_json.get(dia_semana)
         if not dia_data or not dia_data.get("activo"):
             return {"disponible": False, "dia": dia_semana, "horas": []}
@@ -1138,7 +1142,7 @@ def get_available_hours(doctor_id: int, date: str):
         inicio = dia_data.get("inicio")
         fin = dia_data.get("fin")
 
-        # 4️⃣ Generar lista de horas de 30 min entre inicio y fin
+        # 3️⃣ Generar horas del día
         def generar_horas(inicio, fin):
             horas = []
             actual = datetime.datetime.strptime(inicio, "%H:%M")
@@ -1150,7 +1154,7 @@ def get_available_hours(doctor_id: int, date: str):
 
         horas_dia = generar_horas(inicio, fin)
 
-        # 5️⃣ Obtener las horas ocupadas
+        # 4️⃣ Obtener citas ocupadas
         citas = (
             supabase.table("appointments")
             .select("time")
@@ -1159,9 +1163,11 @@ def get_available_hours(doctor_id: int, date: str):
             .execute()
             .data
         )
-        horas_ocupadas = [c["time"] for c in citas] if citas else []
 
-        # 6️⃣ Filtrar disponibles
+        # 🔥 CORRECCIÓN: Normaliza formatos
+        horas_ocupadas = [c["time"][:5] for c in citas] if citas else []
+
+        # 5️⃣ Filtrar disponibles
         horas_disponibles = [h for h in horas_dia if h not in horas_ocupadas]
 
         return {
@@ -1173,6 +1179,7 @@ def get_available_hours(doctor_id: int, date: str):
     except Exception as e:
         print("❌ Error obteniendo horas disponibles:", str(e))
         raise HTTPException(status_code=500, detail=f"Error obteniendo horas disponibles: {str(e)}")
+
 
 @app.get("/dashboard/patients/count")
 def count_patients(today: bool = False):
@@ -1661,4 +1668,720 @@ def get_calendar_by_doctor(doctor_id: int):
 
     except Exception as e:
         print("❌ Error en calendario:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+##Endpoint para Examenes medicos
+@app.post("/exam-orders")
+def create_exam_order(body: dict):
+    """
+    Crea una nueva orden de exámenes vinculada a un encounter.
+    """
+    try:
+        res = (
+            supabase.table("exam_orders")
+            .insert({
+                "encounter_id": body["encounter_id"],
+                "patient_id": body["patient_id"],
+                "doctor_id": body["doctor_id"],   # ✅ CORRECTO
+                "priority": body.get("prioridad", "normal"),
+                "observations": body.get("observations", None),
+                "created_at": datetime.utcnow().isoformat()
+            })
+            .execute()
+        )
+        return res.data[0]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/exam-orders/patient/{patient_id}")
+def get_orders_by_patient(patient_id: int):
+    try:
+        res = (
+            supabase.table("exam_orders")
+            .select("""
+                order_id,
+                encounter_id,
+                prioridad,
+                observaciones,
+                created_at,
+                order_exam_items (
+                    item_id,
+                    status,
+                    exam_type(name, description)
+                )
+            """)
+            .eq("patient_id", patient_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/exam-orders/encounter/{encounter_id}")
+def get_orders_by_encounter(encounter_id: int):
+    try:
+        res = (
+            supabase.table("exam_orders")
+            .select("""
+                *,
+                order_exam_items (*)
+            """)
+            .eq("encounter_id", encounter_id)
+            .execute()
+        )
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/exam-orders/{order_id}/items")
+def add_exam_items(order_id: int, body: dict):
+    """
+    body = { "examtype_ids": [1, 2, 3] }
+    """
+    try:
+        items = [
+            {
+                "order_id": order_id,
+                "examtype_id": examtype_id,
+                "status": "pendiente"
+            }
+            for examtype_id in body["examtype_ids"]
+        ]
+
+        res = supabase.table("order_exam_items").insert(items).execute()
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/exam-items/{item_id}/status")
+def update_exam_item_status(item_id: int, body: dict):
+    """
+    body = { "status": "en_proceso" }
+    """
+    try:
+        res = (
+            supabase.table("order_exam_items")
+            .update({"status": body["status"]})
+            .eq("item_id", item_id)
+            .execute()
+        )
+        return res.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/exam-items/{item_id}/results")
+def upload_exam_result(
+    item_id: int,
+    body: dict = Body(...)
+):
+    """
+    body = {
+        "file_url": "results/archivo.pdf",
+        "uploaded_by": 123
+    }
+    """
+    try:
+        print("📥 BODY RECIBIDO:", body)
+
+        if "file_url" not in body or "uploaded_by" not in body:
+            raise HTTPException(
+                status_code=400,
+                detail="Faltan campos: file_url o uploaded_by"
+            )
+
+        # 1️⃣ Insertar resultado
+        res = (
+            supabase.table("exam_results")
+            .insert({
+                "item_id": item_id,
+                "file_url": body["file_url"],
+                "uploaded_by": body["uploaded_by"],
+                "uploaded_at": datetime.utcnow().isoformat()
+            })
+            .execute()
+        )
+
+        # 2️⃣ Cambiar estado del item
+        supabase.table("order_exam_items") \
+            .update({"status": "completado"}) \
+            .eq("item_id", item_id) \
+            .execute()
+
+        # 3️⃣ Obtener order_id del item
+        query_item = (
+            supabase.table("order_exam_items")
+            .select("order_id")
+            .eq("item_id", item_id)
+            .single()
+            .execute()
+        )
+        order_id = query_item.data["order_id"]
+
+        print("📌 order_id encontrado:", order_id)
+
+        # 4️⃣ Marcar también la orden como completada
+        supabase.table("exam_orders") \
+            .update({"state": "completado"}) \
+            .eq("order_id", order_id) \
+            .execute()
+
+        print("🟢 Orden marcada como completada")
+
+        return res.data[0]
+
+    except Exception as e:
+        print("❌ ERROR EN EXAM-RESULTS:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/exam-results/signed-url/{item_id}")
+def get_exam_signed_url(item_id: int):
+    try:
+        result = (
+            supabase.table("exam_results")
+            .select("file_url")
+            .eq("item_id", item_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not result:
+            raise HTTPException(404, "Resultado no encontrado")
+
+        file_url = result["file_url"]
+
+        signed = supabase.storage\
+            .from_("exam-results")\
+            .create_signed_url(file_url, 3600)  # 1 hora
+
+        return {"url": signed["signedURL"]}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/exam-items/{item_id}/results")
+def get_exam_results(item_id: int):
+    try:
+        res = (
+            supabase.table("exam_results")
+            .select("*")
+            .eq("item_id", item_id)
+            .execute()
+        )
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/patient/{patient_id}/exam-summary")
+def get_patient_exam_summary(patient_id: int):
+    try:
+        res = (
+            supabase.table("exam_orders")
+            .select("""
+                *,
+                order_exam_items(
+                    *,
+                    exam_type(name, description),
+                    exam_results(*)
+                )
+            """)
+            .eq("patient_id", patient_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/lab/pendientes")
+def get_pending_exams():
+    try:
+        res = (
+            supabase.table("order_exam_items")
+            .select("""
+                item_id,
+                status,
+                exam_type(name),
+                exam_orders(
+                    order_id,
+                    patient_id,
+                    doctor_id,
+                    observations,
+                    patients:patient_id (
+                        doc_id,
+                        names,
+                        lastname
+                    ),
+                    doctors:doctor_id (
+                        doctors_id,
+                        nombres,
+                        apellidos
+                    )
+                )
+            """)
+            .eq("status", "pendiente")
+            .execute()
+        )
+        return res.data
+
+    except Exception as e:
+        print("❌ Error pendientes:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/exam-orders/{order_id}")
+def get_order_detail(order_id: int):
+    try:
+        res = (
+            supabase.table("exam_orders")
+            .select("""
+                *,
+                order_exam_items(
+                    *,
+                    exam_type(name, description),
+                    exam_results(*)
+                )
+            """)
+            .eq("order_id", order_id)
+            .single()
+            .execute()
+        )
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/exam-types")
+def get_exam_types():
+    """
+    Retorna todos los tipos de exámenes disponibles.
+    """
+    try:
+        res = (
+            supabase.table("exam_type")
+            .select("*")
+            .order("examtype_id")
+            .execute()
+        )
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/exam-types/{examtype_id}")
+def get_exam_type(examtype_id: int):
+    """
+    Retorna un tipo de examen específico por ID.
+    """
+    try:
+        res = (
+            supabase.table("exam_type")
+            .select("*")
+            .eq("examtype_id", examtype_id)
+            .single()
+            .execute()
+        )
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/exam-types")
+def create_exam_type(body: dict):
+    """
+    Crear un nuevo tipo de examen (solo admin).
+    body = { name, description }
+    """
+    try:
+        res = (
+            supabase.table("exam_type")
+            .insert({
+                "name": body["name"],
+                "description": body.get("description"),
+            })
+            .execute()
+        )
+        return res.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/exam-types/{examtype_id}")
+def update_exam_type(examtype_id: int, body: dict):
+    """
+    Actualizar un tipo de examen existente.
+    """
+    try:
+        res = (
+            supabase.table("exam_type")
+            .update({
+                "name": body.get("name"),
+                "description": body.get("description")
+            })
+            .eq("examtype_id", examtype_id)
+            .execute()
+        )
+        return res.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/exam-types/{examtype_id}")
+def delete_exam_type(examtype_id: int):
+    """
+    Eliminar un tipo de examen.
+    """
+    try:
+        supabase.table("exam_type").delete().eq("examtype_id", examtype_id).execute()
+        return {"message": "Tipo de examen eliminado"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.get("/encounters/{encounter_id}/exam-context")
+def get_exam_context(encounter_id: int):
+    """
+    Devuelve datos necesarios para crear una orden de examen:
+    - paciente
+    - doctor
+    - encounter básico
+    """
+    try:
+        data = (
+            supabase.table("encounters")
+            .select("""
+                encounter_id,
+                date,
+                hour,
+                reason_for_consultation,
+
+                patient_id,
+                doctor_id,
+
+                patients(
+                    patient_id,
+                    doc_id,
+                    names,
+                    lastname
+                ),
+
+                doctors(
+                    doctors_id,
+                    nombres,
+                    apellidos,
+                    user_id
+                )
+            """)
+            .eq("encounter_id", encounter_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not data:
+            raise HTTPException(status_code=404, detail="Encounter no encontrado")
+
+        patient = data.get("patients", {})
+        doctor = data.get("doctors", {})
+
+        return {
+            "encounter_id": data["encounter_id"],
+            "date": data.get("date"),
+            "hour": data.get("hour"),
+            "reason_for_consultation": data.get("reason_for_consultation"),
+
+            # Paciente
+            "patient_id": patient.get("patient_id"),
+            "patient_name": f"{patient.get('names','')} {patient.get('lastname','')}",
+
+            # Doctor
+            "doctor_id": data.get("doctor_id"),
+            "doctor_name": f"{doctor.get('nombres','')} {doctor.get('apellidos','')}",
+            "user_id": doctor.get("user_id"),   # por si lo usas luego
+        }
+
+    except Exception as e:
+        print("❌ Error en exam-context:", str(e))
+        raise HTTPException(status_code=500, detail="Error obteniendo datos para orden de examen")
+
+
+@app.get("/exam-orders/{order_id}")
+def get_single_order(order_id: int):
+    try:
+        res = (
+            supabase.table("exam_orders")
+            .select("""
+                order_id,
+                encounter_id,
+                patient_id,
+                doctor_id,
+                priority,
+                observations,
+                application_date,
+                created_at,
+                patients (names, lastname),
+                doctors (nombres, apellidos),
+                order_exam_items (
+                    item_id,
+                    status,
+                    exam_type(name),
+                    exam_results(*)
+                )
+            """)
+            .eq("order_id", order_id)
+            .single()
+            .execute()
+        )
+
+        data = res.data
+
+        return {
+            "order_id": data["order_id"],
+            "encounter_id": data["encounter_id"],
+            "priority": data.get("priority"),
+            "observations": data.get("observations"),
+            "application_date": data.get("application_date"),
+
+            "patient_name": f"{data['patients']['names']} {data['patients']['lastname']}"
+                if data.get("patients") else "—",
+
+            "doctor_name": f"{data['doctors']['nombres']} {data['doctors']['apellidos']}"
+                if data.get("doctors") else "—",
+
+            "items": [
+                {
+                    "item_id": item["item_id"],
+                    "status": item["status"],
+                    "exam_type_name": item["exam_type"]["name"],
+                    "results": item.get("exam_results", [])
+                }
+                for item in data["order_exam_items"]
+            ]
+        }
+
+    except Exception as e:
+        print("❌ Error get_single_order:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+@app.get("/exam-orders/detail/{order_id}")
+def get_exam_order_detail(order_id: int):
+    """
+    Devuelve toda la información completa de una orden de examen:
+    - Paciente
+    - Doctor
+    - Especialidad
+    - Ítems y tipo de examen
+    """
+    try:
+        # 1️⃣ Obtener la orden con paciente + doctor + items
+        raw = (
+            supabase.table("exam_orders")
+            .select("""
+                order_id,
+                encounter_id,
+                patient_id,
+                doctor_id,
+                priority,
+                observations,
+                created_at,
+
+                patients:patient_id (
+                    patient_id,
+                    doc_id,
+                    names,
+                    lastname
+                ),
+
+                doctors:doctor_id (
+                    doctors_id,
+                    nombres,
+                    apellidos,
+                    especialidad_id,
+                    subespecialidad
+                ),
+
+                order_exam_items (
+                    item_id,
+                    status,
+                    exam_type (
+                        name,
+                        description
+                    )
+                )
+            """)
+            .eq("order_id", order_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not raw:
+            raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+        # 2️⃣ Obtener la ESPECIALIDAD del doctor (consulta aparte)
+        specialty_name = "—"
+        doctor = raw.get("doctors", {})
+
+        especialidad_id = doctor.get("especialidad_id")
+        if especialidad_id:
+            spec = (
+                supabase.table("specialties")
+                .select("name")
+                .eq("especialidad_id", especialidad_id)
+                .single()
+                .execute()
+                .data
+            )
+            if spec:
+                specialty_name = spec["name"]
+
+        # 3️⃣ Preparar items
+        items = []
+        for item in raw.get("order_exam_items", []):
+            items.append({
+                "item_id": item["item_id"],
+                "status": item["status"],
+                "exam_type_name": item["exam_type"]["name"],
+                "exam_type_description": item["exam_type"]["description"]
+            })
+
+        # 4️⃣ Respuesta armada
+        patient = raw.get("patients", {})
+        doctor = raw.get("doctors", {})
+
+        return {
+            "order_id": raw["order_id"],
+            "encounter_id": raw["encounter_id"],
+            "created_at": raw["created_at"],
+            "priority": raw.get("priority"),
+            "observations": raw.get("observations"),
+
+            # Paciente
+            "patient_id": patient.get("patient_id"),
+            "patient_doc_id": patient.get("doc_id"),
+            "patient_name": f"{patient.get('names','')} {patient.get('lastname','')}".strip(),
+
+            # Doctor
+            "doctor_id": doctor.get("doctors_id"),
+            "doctor_name": f"{doctor.get('nombres','')} {doctor.get('apellidos','')}".strip(),
+            "especialidad": specialty_name,
+            "subespecialidad": doctor.get("subespecialidad", "—"),
+
+            # Items
+            "items": items
+        }
+
+    except Exception as e:
+        print("❌ Error en get_exam_order_detail:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/lab/item/{item_id}")
+def get_lab_item(item_id: int):
+    try:
+        # 1️⃣ Consulta base (sin specialties)
+        raw = (
+            supabase.table("order_exam_items")
+            .select("""
+                item_id,
+                status,
+
+                exam_type(name, description),
+
+                exam_results(
+                    file_url,
+                    uploaded_at
+                ),
+
+                exam_orders(
+                    order_id,
+                    observations,
+                    patient_id,
+                    doctor_id,
+
+                    patients:patient_id (
+                        doc_id,
+                        names,
+                        lastname
+                    ),
+
+                    doctors:doctor_id (
+                        doctors_id,
+                        nombres,
+                        apellidos,
+                        especialidad_id,
+                        subespecialidad
+                    )
+                )
+            """)
+            .eq("item_id", item_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not raw:
+            raise HTTPException(status_code=404, detail="Item no encontrado")
+
+        order = raw["exam_orders"]
+        patient = order["patients"]
+        doctor = order["doctors"]
+
+        # 2️⃣ Obtener especialidad en una segunda consulta
+        specialty_name = "—"
+        if doctor.get("especialidad_id"):
+            spec = (
+                supabase.table("specialties")
+                .select("name")
+                .eq("especialidad_id", doctor["especialidad_id"])
+                .single()
+                .execute()
+                .data
+            )
+            if spec:
+                specialty_name = spec["name"]
+
+        # 3️⃣ URL firmada para el archivo si existe
+        result_url = None
+        if raw.get("exam_results"):
+            file_url = raw["exam_results"][0]["file_url"]
+
+            signed = supabase.storage \
+                .from_("exam-results") \
+                .create_signed_url(file_url, 3600 * 24 * 7)  # 1 semana
+
+            result_url = signed.get("signedURL")
+
+        # 4️⃣ Armar respuesta final
+        return {
+            "item_id": raw["item_id"],
+            "status": raw["status"],
+
+            # examen
+            "exam_type_name": raw["exam_type"]["name"],
+            "exam_type_description": raw["exam_type"]["description"],
+
+            # paciente
+            "patient_name": f"{patient['names']} {patient['lastname']}",
+            "patient_doc_id": patient["doc_id"],
+
+            # doctor
+            "doctor_name": f"{doctor['nombres']} {doctor['apellidos']}",
+            "especialidad": specialty_name,
+            "subespecialidad": doctor.get("subespecialidad", "—"),
+
+            # resultado
+            "result_url": result_url
+        }
+
+    except Exception as e:
+        print("❌ Error get_lab_item:", e)
         raise HTTPException(status_code=500, detail=str(e))

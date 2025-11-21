@@ -69,6 +69,8 @@ export default function CalendarioCitas() {
               ? '#42b883'
               : a.status === 'cancelada'
               ? '#e74c3c'
+              : a.status === 'atendida'
+              ? '#2980b9'
               : '#f4c542',
           extendedProps: {
             reason: a.reason,
@@ -133,6 +135,8 @@ export default function CalendarioCitas() {
                     ? '#42b883'
                     : status === 'cancelada'
                     ? '#e74c3c'
+                    : status === 'atendida'
+                    ? '#2980b9'
                     : '#f4c542',
                 extendedProps: { ...e.extendedProps, status },
               }
@@ -171,6 +175,7 @@ export default function CalendarioCitas() {
           <span><span style={{ color: '#f4c542' }}>●</span> Pendiente</span>
           <span><span style={{ color: '#42b883' }}>●</span> Confirmada</span>
           <span><span style={{ color: '#e74c3c' }}>●</span> Cancelada</span>
+          <span><span style={{ color: '#2980b9' }}>●</span> Atendida</span>
         </div>
 
         <Card className="shadow-sm p-3">
@@ -238,6 +243,9 @@ export default function CalendarioCitas() {
                   Cancelar Cita
                 </Button>
 
+                <Button variant="info" onClick={() => handleStatusChange('atendida')}>
+                  Atendida
+                </Button>
                 <Button
                   variant="primary"
                   onClick={() => navigate(`/medico/pacientes/${selectedEvent.doc_id}`)}

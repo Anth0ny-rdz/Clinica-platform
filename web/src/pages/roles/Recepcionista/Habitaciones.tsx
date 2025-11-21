@@ -92,7 +92,7 @@ export default function Habitaciones() {
                     <Spinner animation="border" size="sm" />
                   ) : (
                     <>
-                      {room.state !== "Ocupada" && (
+                      {/* {room.state !== "Ocupada" && (
                         <Button
                           size="sm"
                           variant="outline-danger"
@@ -101,7 +101,7 @@ export default function Habitaciones() {
                         >
                           Ocupada
                         </Button>
-                      )}
+                      )} */}
                       {room.state !== "Disponible" && (
                         <Button
                           size="sm"

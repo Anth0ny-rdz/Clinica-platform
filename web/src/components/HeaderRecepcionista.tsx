@@ -39,7 +39,7 @@ export default function HeaderRecepcionista() {
           Inicio
         </Link>
         <Link to="/recepcionista/usuarios" style={{ color: 'white', textDecoration: 'none' }}>
-          Usuarios
+          Pacientes
         </Link>
         <Link to="/recepcionista/citas" style={{ color: 'white', textDecoration: 'none' }}>
           Citas

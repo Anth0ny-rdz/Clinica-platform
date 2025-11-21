@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Modal, Button, Card, Form, Row, Col, Table, Spinner, Alert } from 'react-bootstrap'
+import { Modal, Button, Card, Form, Table, Alert } from 'react-bootstrap'
 
 import { createAppointment, fetchAppointments, fetchAvailableHours } from '@/services/appointmentService'
 import { fetchUserProfileId } from '@/services/userService'
-import { fetchAllPatients, fetchPatientByCedula } from '@/services/patientService'
+import { fetchAllPatients } from '@/services/patientService'
 import { fetchSpecialties } from '@/services/specialtyService'
 import { fetchDoctorsBySpecialty } from '@/services/doctorService'
-import { fetchEncountersByPatientBrief } from '@/services/encounterService'  // Nuevo endpoint reducido
+import { fetchEncountersByPatientBrief } from '@/services/encounterService'
 import { useAuth } from '@/context/AuthContext'
 
 export default function CitasRecepcionista() {
@@ -40,7 +40,7 @@ export default function CitasRecepcionista() {
   const [loading, setLoading] = useState(false)
 
   // ============================
-  // cargar perfil + citas + especialidades + pacientes
+  // Cargar perfil + pacientes + especialidades + citas
   // ============================
   useEffect(() => {
     (async () => {
@@ -60,7 +60,7 @@ export default function CitasRecepcionista() {
   }, [])
 
   // ============================
-  // dinámica paciente
+  // Buscador dinámico
   // ============================
   function handleSearchPatient(text: string) {
     setSearchPatient(text)
@@ -78,7 +78,7 @@ export default function CitasRecepcionista() {
   }
 
   // ============================
-  // cargar doctores según especialidad
+  // Cargar doctores por especialidad
   // ============================
   useEffect(() => {
     if (selectedSpecialty !== null) {
@@ -89,7 +89,7 @@ export default function CitasRecepcionista() {
   }, [selectedSpecialty])
 
   // ============================
-  // disponibilidad
+  // Cargar disponibilidad del médico
   // ============================
   useEffect(() => {
     if (form.doctor_id && form.date) {
@@ -111,7 +111,19 @@ export default function CitasRecepcionista() {
   }, [form.doctor_id, form.date])
 
   // ============================
-  // guardar cita
+  // Obtener citas ocupadas (FIX)
+  // ============================
+  const horasTomadas = appointments
+    .filter(
+      (c) =>
+        form.doctor_id &&
+        c.doctor_profile_id === parseInt(form.doctor_id) &&
+        c.date === form.date
+    )
+    .map((c) => c.time.slice(0, 5)) // <-- FIX: normaliza "14:30:00" → "14:30"
+
+  // ============================
+  // Guardar cita
   // ============================
   const handleSubmit = async (e: any) => {
     e.preventDefault()
@@ -146,7 +158,7 @@ export default function CitasRecepcionista() {
   }
 
   // ============================
-  // Ver historial médico modal
+  // Abrir historial médico
   // ============================
   async function abrirHistorial() {
     if (!selectedPatient) return
@@ -170,9 +182,7 @@ export default function CitasRecepcionista() {
           </Alert>
         )}
 
-        {/* =======================
-           BUSCAR PACIENTE DINÁMICO
-        ======================= */}
+        {/* BUSCAR PACIENTE */}
         <Form.Group className="mb-3">
           <Form.Label>Buscar Paciente</Form.Label>
           <Form.Control
@@ -201,9 +211,7 @@ export default function CitasRecepcionista() {
           )}
         </Form.Group>
 
-        {/* =======================
-            INFO PACIENTE
-        ======================= */}
+        {/* INFO PACIENTE */}
         {selectedPatient && (
           <Card className="p-3 mb-3 bg-light">
             <h5>🧍 Paciente Seleccionado</h5>
@@ -217,12 +225,9 @@ export default function CitasRecepcionista() {
           </Card>
         )}
 
-        {/* =======================
-            FORMULARIO CITA
-        ======================= */}
+        {/* FORMULARIO CITA */}
         <Form onSubmit={handleSubmit}>
 
-          {/* Especialidad */}
           <Form.Select
             className="mb-2"
             value={selectedSpecialty ?? ""}
@@ -241,7 +246,6 @@ export default function CitasRecepcionista() {
             ))}
           </Form.Select>
 
-          {/* Médico */}
           <Form.Select
             className="mb-2"
             name="doctor_id"
@@ -261,7 +265,6 @@ export default function CitasRecepcionista() {
             ))}
           </Form.Select>
 
-          {/* Fecha */}
           <Form.Control
             className="mb-2"
             type="date"
@@ -270,26 +273,36 @@ export default function CitasRecepcionista() {
             required
           />
 
-          {/* Hora */}
+          {/* SELECTOR DE HORAS CON CORRECCIÓN */}
           <Form.Select
             className="mb-2"
             name="time"
             value={form.time}
             onChange={(e) => setForm({ ...form, time: e.target.value })}
-            disabled={!availableHours.length}
             required
           >
             <option value="">Seleccionar hora...</option>
-            {availableHours.map((h) => (
-              <option key={h} value={h}>{h}</option>
-            ))}
+
+            {availableHours.map((h) => {
+              const ocupada = horasTomadas.includes(h)
+
+              return (
+                <option
+                  key={h}
+                  value={ocupada ? "" : h}
+                  disabled={ocupada}
+                  style={{ color: ocupada ? "red" : "black" }}
+                >
+                  {ocupada ? `${h} — Ocupada` : h}
+                </option>
+              )
+            })}
           </Form.Select>
 
           {availabilityMessage && (
             <p className="text-danger">{availabilityMessage}</p>
           )}
 
-          {/* Motivo */}
           <Form.Control
             as="textarea"
             className="mb-3"
@@ -304,9 +317,7 @@ export default function CitasRecepcionista() {
         </Form>
       </Card>
 
-      {/* =======================
-            TABLA DE CITAS
-      ======================= */}
+      {/* TABLA DE CITAS */}
       <Card className="shadow p-4 mt-4">
         <h4>🗂️ Citas Registradas</h4>
 
@@ -325,7 +336,7 @@ export default function CitasRecepcionista() {
             {appointments.map((a) => (
               <tr key={a.appointment_id}>
                 <td>{new Date(a.date).toLocaleDateString('es-EC')}</td>
-                <td>{a.time}</td>
+                <td>{a.time.slice(0, 5)}</td>
                 <td>{a.patient_name}</td>
                 <td>{a.doctor_name}</td>
                 <td>{a.reason || "—"}</td>
@@ -336,9 +347,7 @@ export default function CitasRecepcionista() {
         </Table>
       </Card>
 
-      {/* =======================
-            MODAL HISTORIAL
-      ======================= */}
+      {/* MODAL HISTORIAL */}
       <Modal show={modalHistorial} onHide={() => setModalHistorial(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Historial Médico</Modal.Title>
@@ -376,7 +385,6 @@ export default function CitasRecepcionista() {
         </Modal.Footer>
       </Modal>
 
-      {/* estilo hover */}
       <style>
         {`.list-item-hover:hover { background:#eef4ff; cursor:pointer; }`}
       </style>

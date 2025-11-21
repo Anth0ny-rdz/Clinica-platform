@@ -302,15 +302,6 @@ export default function NuevaAdmision() {
             </Form.Select>
           </Form.Group>
 
-          {/* CAMA */}
-          <Form.Group className="mb-3">
-            <Form.Label>Cama asignada</Form.Label>
-            <Form.Control
-              placeholder="Opcional"
-              value={formData.cama_asignada}
-              onChange={(e) => setFormData({ ...formData, cama_asignada: e.target.value })}
-            />
-          </Form.Group>
 
           <Button type="submit" className="w-100">
             Registrar Admisión
