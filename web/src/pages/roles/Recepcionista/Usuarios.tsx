@@ -201,7 +201,7 @@ export default function Usuarios() {
         )}
 
         <button type="submit" disabled={loading}>
-          {loading ? 'Creando usuario...' : 'Registrar usuario'}
+          {loading ? 'Creando paciente...' : 'Registrar paciente'}
         </button>
       </form>
 

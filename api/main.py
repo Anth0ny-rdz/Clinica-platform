@@ -10,6 +10,10 @@ from fastapi import Body
 from datetime import datetime, timedelta, date
 import json
 
+from fastapi import HTTPException
+from datetime import datetime
+import bcrypt
+import json
 
 from fastapi.responses import JSONResponse
 
@@ -62,7 +66,7 @@ class UserCreate(BaseModel):
 
     seguro_medico: Optional[str] = None
 
-
+#1
 @app.post("/create_user")
 def create_user(user: UserCreate):
     try:
@@ -149,7 +153,8 @@ def create_user(user: UserCreate):
     except Exception as e:
         print("❌ Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
-    
+
+#2   
 @app.get("/patients")
 def get_all_patients():
     """
@@ -162,7 +167,7 @@ def get_all_patients():
         print("❌ Error obteniendo pacientes:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-
+#3
 @app.get("/patients/{cedula}")
 def get_patient_by_cedula(cedula: str):
     """
@@ -179,8 +184,7 @@ def get_patient_by_cedula(cedula: str):
         print("❌ Error buscando paciente:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-
-
+#4
 @app.put("/patients/{cedula}")
 def update_patient(cedula: str, data: dict = Body(...)):
     """
@@ -201,7 +205,7 @@ def update_patient(cedula: str, data: dict = Body(...)):
         print("❌ Error actualizando paciente:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
     
-
+#5
 @app.post("/encounters")
 def create_encounter(data: dict):
     """
@@ -262,8 +266,7 @@ def create_encounter(data: dict):
         print("❌ Error creando historia médica:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-
-
+#6
 @app.post("/vital_signs")
 def create_vital_signs(data: dict):
     """
@@ -282,7 +285,8 @@ def create_vital_signs(data: dict):
     except Exception as e:
         print("❌ Error creando signos vitales:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
-    
+
+#7    
 @app.get("/doctor/{auth_id}")
 def get_doctor_profile(auth_id: str):
     """
@@ -301,7 +305,8 @@ def get_doctor_profile(auth_id: str):
     except Exception as e:
         print("❌ Error obteniendo perfil del médico:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
-    
+
+#8    
 @app.get("/doctor/id/{auth_id}")
 def get_doctor_id_by_auth(auth_id: str):
     """
@@ -328,22 +333,37 @@ def get_doctor_id_by_auth(auth_id: str):
         print("❌ Error obteniendo doctor_id:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
+from routers.notifications import router as notifications_router
+from services.twilio_service import send_reservation_whatsapp
 
-
+#9
 @app.post("/appointments")
 def create_appointment(data: dict):
     """
-    Crea una nueva cita verificando disponibilidad del médico.
+    Crea una nueva cita verificando disponibilidad del médico
+    y envía automáticamente un mensaje de WhatsApp al paciente.
     """
+
     try:
+        print("\n================= 🟦 INICIO CREACIÓN DE CITA 🟦 =================")
+        print("📥 Datos recibidos en el backend:", data)
+
         patient_id = int(data["patient_id"])
-        doctor_profile_id = int(data["doctor_profile_id"])
+        doctor_profile_id = int(data["doctor_profile_id"])   # este valor es doctors_id
         created_by = int(data["created_by"])
         date = data["date"]
         time = data["time"]
         reason = data.get("reason", "")
 
-        # 🔍 Verificar si ya existe una cita del mismo médico en la misma fecha y hora
+        print("🧩 patient_id:", patient_id)
+        print("🧩 doctor_profile_id (doctors_id):", doctor_profile_id)
+        print("🧩 created_by:", created_by)
+        print("🧩 date:", date)
+        print("🧩 time:", time)
+        print("🧩 reason:", reason)
+
+        # 🔍 1. Verificar disponibilidad del médico
+        print("\n🔍 Verificando disponibilidad del médico...")
         existing = (
             supabase.table("appointments")
             .select("appointment_id")
@@ -352,14 +372,17 @@ def create_appointment(data: dict):
             .eq("time", time)
             .execute()
         )
+        print("📌 Resultado disponibilidad:", existing.data)
 
         if existing.data:
+            print("❌ Médico ocupado en ese horario")
             raise HTTPException(
                 status_code=400,
                 detail="⚠️ El médico ya tiene una cita programada en esa fecha y hora."
             )
 
-        # ✅ Crear la nueva cita
+        # 📝 2. Crear la nueva cita
+        print("\n📝 Creando cita...")
         appointment_data = {
             "patient_id": patient_id,
             "doctor_profile_id": doctor_profile_id,
@@ -371,20 +394,95 @@ def create_appointment(data: dict):
             "created_at": datetime.now().isoformat(),
         }
 
+        print("📦 Datos a insertar:", appointment_data)
+
         result = supabase.table("appointments").insert(appointment_data).execute()
+        print("📌 Resultado insert:", result.data)
 
         if not result.data:
             raise HTTPException(status_code=400, detail="Error creando cita médica.")
 
-        return {"message": "✅ Cita creada correctamente", "appointment_id": result.data[0]["appointment_id"]}
+        appointment_id = result.data[0]["appointment_id"]
+        print("🆔 ID cita creada:", appointment_id)
+
+        # ----------------------------------------------------------------------
+        # 📡 3. ENVIAR WHATSAPP AUTOMÁTICAMENTE
+        # ----------------------------------------------------------------------
+        print("\n================= 🟩 INICIO ENVÍO WHATSAPP 🟩 =================")
+
+        # 3.1 Obtener datos del paciente
+        print("🔎 Buscando paciente con patient_id =", patient_id)
+        patient = (
+            supabase.table("patients")
+            .select("names, lastname, telephone")
+            .eq("patient_id", patient_id)
+            .single()
+            .execute()
+        ).data
+        print("👤 Paciente encontrado:", patient)
+
+        # 3.2 Obtener datos del doctor
+        print("🔎 Buscando doctor con doctors_id =", doctor_profile_id)
+        doctor = (
+            supabase.table("doctors")
+            .select("nombres, apellidos, especialidad_id")
+            .eq("doctors_id", doctor_profile_id)
+            .single()
+            .execute()
+        ).data
+        print("👨‍⚕️ Doctor encontrado:", doctor)
+
+        # 3.3 Obtener nombre de la especialidad
+        print("🔎 Buscando especialidad con specialty_id =", doctor["especialidad_id"])
+        specialty = (
+            supabase.table("specialties")
+            .select("name")
+            .eq("especialidad_id", doctor["especialidad_id"])
+            .single()
+            .execute()
+        ).data
+        print("🏥 Especialidad encontrada:", specialty)
+
+        specialty_name = specialty["name"]
+
+        # 3.4 Construir variables Twilio
+        variables = {
+            "1": f"{patient['names']} {patient['lastname']}",
+            "2": date,
+            "3": time,
+            "4": f"{doctor['nombres']} {doctor['apellidos']}",
+            "5": specialty_name
+        }
+
+        print("📨 Variables WhatsApp:", variables)
+
+        # 3.5 Formatear número
+        patient_phone = f"+593{patient['telephone'].lstrip('0')}"
+        print("📞 Número final del paciente:", patient_phone)
+
+        # 3.6 Enviar WhatsApp
+        print("\n📤 Enviando WhatsApp...")
+        whatsapp_status = send_reservation_whatsapp(patient_phone, variables)
+        print("📬 Resultado envío WhatsApp:", whatsapp_status)
+
+        print("\n================= 🟦 FIN CREACIÓN DE CITA 🟦 =================\n")
+
+        return {
+            "message": "✅ Cita creada correctamente",
+            "appointment_id": appointment_id,
+            "whatsapp_status": whatsapp_status
+        }
 
     except HTTPException as he:
+        print("❗ HTTPException atrapada:", str(he.detail))
         raise he
+
     except Exception as e:
-        print("❌ Error creando cita:", str(e))
+        print("🔥 EXCEPCIÓN NO CONTROLADA:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
+#10
 # 📋 Obtener todas las citas (vista recepcionista)
 @app.get("/appointments")
 def get_all_appointments():
@@ -460,7 +558,7 @@ def get_all_appointments():
         raise HTTPException(status_code=500, detail=f"Error obteniendo citas: {str(e)}")
 
 
-# 👨‍⚕️ Obtener citas por médico (vista del médico)
+#11 👨‍⚕️ Obtener citas por médico (vista del médico)
 @app.get("/appointments/doctor/{doctor_id}")
 def get_appointments_by_doctor(doctor_id: int):
     try:
@@ -476,7 +574,7 @@ def get_appointments_by_doctor(doctor_id: int):
         raise HTTPException(status_code=500, detail=f"Error obteniendo citas del médico: {str(e)}")
 
 
-# 🔄 Actualizar estado de cita
+#12 🔄 Actualizar estado de cita
 @app.put("/appointments/{appointment_id}")
 def update_appointment_status(appointment_id: int, data: dict):
     try:
@@ -488,7 +586,8 @@ def update_appointment_status(appointment_id: int, data: dict):
         return {"message": "✅ Cita actualizada correctamente"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error actualizando cita: {str(e)}")
-    
+
+#13    
 @app.get("/patients/by-cedula/{doc_id}")
 def get_patient_by_cedula(doc_id: str):
     try:
@@ -505,7 +604,7 @@ def get_patient_by_cedula(doc_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al buscar paciente: {str(e)}")
 
-
+#14
 @app.get("/doctors")
 def get_all_doctors():
     """
@@ -557,6 +656,7 @@ def get_all_doctors():
         print("❌ Error obteniendo médicos:", str(e))
         raise HTTPException(status_code=500, detail=f"Error obteniendo médicos: {str(e)}")
 
+#15
 @app.get("/user_profile/{auth_id}")
 def get_user_profile_by_auth(auth_id: str):
     """
@@ -578,7 +678,7 @@ def get_user_profile_by_auth(auth_id: str):
         print("❌ Error obteniendo perfil:", str(e))
         raise HTTPException(status_code=500, detail=f"Error obteniendo perfil: {str(e)}")
 
-
+#16
 @app.get("/appointments/calendar")
 def get_appointments_calendar():
     """
@@ -662,11 +762,7 @@ def get_appointments_calendar():
         print("❌ Error obteniendo citas para calendario:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-from fastapi import HTTPException
-from datetime import datetime
-import bcrypt
-import json
-
+#17
 @app.post("/create_doctor_full")
 def create_doctor_full(data: dict):
     """
@@ -761,6 +857,7 @@ def create_doctor_full(data: dict):
         print("❌ Error creando doctor:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
+#18
 @app.get("/specialties")
 def get_specialties():
     """Devuelve todas las especialidades médicas."""
@@ -771,6 +868,7 @@ def get_specialties():
         print("❌ Error obteniendo especialidades:", str(e))
         raise HTTPException(status_code=500, detail="Error al obtener especialidades")
 
+#19
 @app.get("/doctors/by_specialty/{especialidad_id}")
 def get_doctors_by_specialty(especialidad_id: int):
     """
@@ -789,7 +887,7 @@ def get_doctors_by_specialty(especialidad_id: int):
         print("❌ Error obteniendo doctores por especialidad:", str(e))
         raise HTTPException(status_code=500, detail="Error al obtener doctores por especialidad")
 
-
+#20
 @app.get("/patients/{patient_id}/encounters")
 def get_encounters_by_patient(patient_id: int):
     """
@@ -908,9 +1006,7 @@ def get_encounters_by_patient(patient_id: int):
         print("❌ Error obteniendo historias del paciente:", str(e))
         raise HTTPException(status_code=500, detail="Error al obtener historias del paciente")
 
-
-
-
+#21
 @app.get("/encounters/detail/{encounter_id}")
 def get_encounter_detail(encounter_id: int):
     """
@@ -1018,6 +1114,7 @@ def get_encounter_detail(encounter_id: int):
         print("❌ Error obteniendo detalle de historia médica:", str(e))
         raise HTTPException(status_code=500, detail="Error al obtener detalle de historia médica")
 
+#22
 @app.get("/encounters/{patient_id}")
 def get_encounters_by_patient(patient_id: int):
     """
@@ -1104,7 +1201,8 @@ def get_encounters_by_patient(patient_id: int):
     except Exception as e:
         print("❌ Error al obtener historias:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
-    
+
+#23    
 @app.get("/doctors/{doctor_id}/available-hours")
 def get_available_hours(doctor_id: int, date: str):
     """
@@ -1180,7 +1278,7 @@ def get_available_hours(doctor_id: int, date: str):
         print("❌ Error obteniendo horas disponibles:", str(e))
         raise HTTPException(status_code=500, detail=f"Error obteniendo horas disponibles: {str(e)}")
 
-
+#24
 @app.get("/dashboard/patients/count")
 def count_patients(today: bool = False):
     """
@@ -1209,7 +1307,7 @@ def count_patients(today: bool = False):
         print("❌ Error en /dashboard/patients/count:", e)
         raise HTTPException(status_code=500, detail=f"Error al contar pacientes: {str(e)}")
 
-
+#25
 @app.get("/dashboard/appointments/today")
 def count_appointments_today():
     """
@@ -1232,7 +1330,7 @@ def count_appointments_today():
         print("❌ Error en /dashboard/appointments/today:", e)
         raise HTTPException(status_code=500, detail=f"Error al contar citas: {str(e)}")
 
-# 🧩 Obtener todas las habitaciones
+#26 🧩 Obtener todas las habitaciones
 @app.get("/rooms")
 def get_all_rooms():
     """
@@ -1246,7 +1344,7 @@ def get_all_rooms():
         raise HTTPException(status_code=500, detail=f"Error al obtener habitaciones: {str(e)}")
 
 
-# 🧩 Obtener una habitación específica
+#27 🧩 Obtener una habitación específica
 @app.get("/rooms/{room_id}")
 def get_room_by_id(room_id: int):
     """
@@ -1262,7 +1360,7 @@ def get_room_by_id(room_id: int):
         raise HTTPException(status_code=500, detail=f"Error al obtener habitación: {str(e)}")
 
 
-# 🧩 Actualizar estado de una habitación
+#28 🧩 Actualizar estado de una habitación
 @app.put("/rooms/{room_id}/state")
 def update_room_state(room_id: int, body: dict):
     """
@@ -1289,6 +1387,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from datetime import datetime
 
+#29
 @app.post("/admissions")
 def create_admission(body: dict):
     try:
@@ -1365,8 +1464,7 @@ def create_admission(body: dict):
         print("❌ Error al crear admisión:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
+#30
 @app.get("/admissions/active")
 def get_active_admissions():
     try:
@@ -1375,6 +1473,7 @@ def get_active_admissions():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+#31
 @app.put("/admissions/{admission_id}/diagnostico")
 def update_diagnostico(admission_id: int, body: dict):
     try:
@@ -1396,7 +1495,7 @@ from fastapi.responses import JSONResponse
 from datetime import datetime
 
 
-
+#32
 @app.get("/doctors/all")
 def get_all_doctors():
     """
@@ -1409,7 +1508,7 @@ def get_all_doctors():
         print("❌ Error obteniendo doctores:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-
+#33
 @app.get("/admissions/medico/{doctor_profile_id}")
 def get_admissions_by_doctor(doctor_profile_id: int):
     try:
@@ -1439,7 +1538,7 @@ def get_admissions_by_doctor(doctor_profile_id: int):
         print("❌ Error hospitalizaciones:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#34
 @app.get("/doctor/by_auth/{auth_id}")
 def get_doctor_by_auth(auth_id: str):
 
@@ -1480,7 +1579,7 @@ def get_doctor_by_auth(auth_id: str):
         print("❌ Error doctor por auth:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#35
 @app.get("/admissions/{admission_id}")
 def get_admission_by_id(admission_id: int):
     try:
@@ -1501,7 +1600,7 @@ def get_admission_by_id(admission_id: int):
         print("❌ Error:", e)
         raise HTTPException(status_code=500, detail=str(e))
     
-    
+#36    
 @app.put("/admissions/{admission_id}/alta")
 def dar_alta_medica(admission_id: int, body: dict):
 
@@ -1548,6 +1647,7 @@ def dar_alta_medica(admission_id: int, body: dict):
         print("❌ Error en alta:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
+#37
 @app.get("/admissions/by_patient/{patient_id}")
 def get_admissions_by_patient(patient_id: int):
     try:
@@ -1576,7 +1676,7 @@ def get_admissions_by_patient(patient_id: int):
         print("❌ Error hospitalizaciones:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#38
 @app.get("/encounters/patient/{patient_id}/brief")
 def get_encounters_brief(patient_id: int):
     try:
@@ -1616,7 +1716,7 @@ def get_encounters_brief(patient_id: int):
         print("❌ Error historial breve:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#39
 @app.get("/appointments/calendar/{doctor_id}")
 def get_calendar_by_doctor(doctor_id: int):
     """
@@ -1670,7 +1770,7 @@ def get_calendar_by_doctor(doctor_id: int):
         print("❌ Error en calendario:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#40
 ##Endpoint para Examenes medicos
 @app.post("/exam-orders")
 def create_exam_order(body: dict):
@@ -1695,7 +1795,7 @@ def create_exam_order(body: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#41
 @app.get("/exam-orders/patient/{patient_id}")
 def get_orders_by_patient(patient_id: int):
     try:
@@ -1721,6 +1821,7 @@ def get_orders_by_patient(patient_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+#42
 @app.get("/exam-orders/encounter/{encounter_id}")
 def get_orders_by_encounter(encounter_id: int):
     try:
@@ -1737,6 +1838,7 @@ def get_orders_by_encounter(encounter_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+#43
 @app.post("/exam-orders/{order_id}/items")
 def add_exam_items(order_id: int, body: dict):
     """
@@ -1757,6 +1859,7 @@ def add_exam_items(order_id: int, body: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+#44
 @app.put("/exam-items/{item_id}/status")
 def update_exam_item_status(item_id: int, body: dict):
     """
@@ -1773,6 +1876,7 @@ def update_exam_item_status(item_id: int, body: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+#45
 @app.post("/exam-items/{item_id}/results")
 def upload_exam_result(
     item_id: int,
@@ -1837,7 +1941,7 @@ def upload_exam_result(
         print("❌ ERROR EN EXAM-RESULTS:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#46
 @app.get("/exam-results/signed-url/{item_id}")
 def get_exam_signed_url(item_id: int):
     try:
@@ -1864,7 +1968,7 @@ def get_exam_signed_url(item_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#47
 @app.get("/exam-items/{item_id}/results")
 def get_exam_results(item_id: int):
     try:
@@ -1878,7 +1982,7 @@ def get_exam_results(item_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#48
 @app.get("/patient/{patient_id}/exam-summary")
 def get_patient_exam_summary(patient_id: int):
     try:
@@ -1900,6 +2004,7 @@ def get_patient_exam_summary(patient_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+#49
 @app.get("/lab/pendientes")
 def get_pending_exams():
     try:
@@ -1935,7 +2040,7 @@ def get_pending_exams():
         print("❌ Error pendientes:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#50
 @app.get("/exam-orders/{order_id}")
 def get_order_detail(order_id: int):
     try:
@@ -1957,7 +2062,7 @@ def get_order_detail(order_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#51
 @app.get("/exam-types")
 def get_exam_types():
     """
@@ -1974,7 +2079,7 @@ def get_exam_types():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#52
 @app.get("/exam-types/{examtype_id}")
 def get_exam_type(examtype_id: int):
     """
@@ -1992,7 +2097,7 @@ def get_exam_type(examtype_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#53
 @app.post("/exam-types")
 def create_exam_type(body: dict):
     """
@@ -2012,7 +2117,7 @@ def create_exam_type(body: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#54
 @app.put("/exam-types/{examtype_id}")
 def update_exam_type(examtype_id: int, body: dict):
     """
@@ -2032,7 +2137,7 @@ def update_exam_type(examtype_id: int, body: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#55
 @app.delete("/exam-types/{examtype_id}")
 def delete_exam_type(examtype_id: int):
     """
@@ -2044,7 +2149,7 @@ def delete_exam_type(examtype_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-
+#56
 @app.get("/encounters/{encounter_id}/exam-context")
 def get_exam_context(encounter_id: int):
     """
@@ -2111,7 +2216,7 @@ def get_exam_context(encounter_id: int):
         print("❌ Error en exam-context:", str(e))
         raise HTTPException(status_code=500, detail="Error obteniendo datos para orden de examen")
 
-
+#57
 @app.get("/exam-orders/{order_id}")
 def get_single_order(order_id: int):
     try:
@@ -2170,8 +2275,7 @@ def get_single_order(order_id: int):
         print("❌ Error get_single_order:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
     
-
-
+#58
 @app.get("/exam-orders/detail/{order_id}")
 def get_exam_order_detail(order_id: int):
     """
@@ -2284,6 +2388,7 @@ def get_exam_order_detail(order_id: int):
         print("❌ Error en get_exam_order_detail:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
+#59
 @app.get("/lab/item/{item_id}")
 def get_lab_item(item_id: int):
     try:
@@ -2386,7 +2491,7 @@ def get_lab_item(item_id: int):
         print("❌ Error get_lab_item:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
+#60
 @app.get("/lab/completados")
 def get_completed_exams(
     date: str | None = None,
