@@ -80,6 +80,7 @@ export default function DetallePaciente() {
         <p><strong>Teléfono:</strong> {patient.telephone || "—"}</p>
         <p><strong>Dirección:</strong> {patient.address || "—"}</p>
         <p><strong>Email:</strong> {patient.email || "—"}</p>
+        <p><strong>Genero:</strong> {patient.genre || "—"}</p>
 
         <hr />
 
@@ -91,7 +92,36 @@ export default function DetallePaciente() {
             <textarea name="family_history" value={patient.family_history || ""} onChange={handleChange} className="form-control" placeholder="Antecedentes familiares" />
             <textarea name="allergy" value={patient.allergy || ""} onChange={handleChange} className="form-control" placeholder="Alergias" />
             <textarea name="common_medicines" value={patient.common_medicines || ""} onChange={handleChange} className="form-control" placeholder="Medicamentos comunes" />
-
+            <select
+              name="blood_type"
+              value={patient.blood_type || ""}
+              onChange={handleChange}
+              className="form-control"
+              required
+            >
+              <option value="">Seleccione tipo de sangre</option>
+              <option value="A+">A+</option>
+              <option value="A-">A-</option>
+              <option value="B+">B+</option>
+              <option value="B-">B-</option>
+              <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
+            </select>
+            <select
+              name="genre"
+              value={patient.genre || ""}
+              onChange={handleChange}
+              className="form-control"
+              required
+            >
+              <option value="">Seleccione género</option>
+              <option value="Masculino">Masculino</option>
+              <option value="Femenino">Femenino</option>
+              <option value="Otro">Otro</option>
+              <option value="No especifica">No especifica</option>
+            </select>
             <Button onClick={handleSave} variant="success">Guardar cambios</Button>
           </div>
         ) : (
@@ -100,7 +130,7 @@ export default function DetallePaciente() {
             <p><strong>Antecedentes familiares:</strong> {patient.family_history || "—"}</p>
             <p><strong>Alergias:</strong> {patient.allergy || "—"}</p>
             <p><strong>Medicamentos comunes:</strong> {patient.common_medicines || "—"}</p>
-
+            <p><strong>Tipo de sangre:</strong> {patient.blood_type || "—"}</p>
             <Button variant="primary" onClick={() => setEditMode(true)}>
               Editar información
             </Button>

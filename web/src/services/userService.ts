@@ -26,6 +26,7 @@ export interface NewPatientData extends NewUserData {
   address: string
   birth_date: string
   seguro_medico: string | null
+  genre: string
 }
 
 export async function fetchRoles(): Promise<Role[]> {

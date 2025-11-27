@@ -28,3 +28,22 @@ def send_reservation_whatsapp(patient_phone: str, variables: dict):
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+
+def send_lab_result_whatsapp(patient_phone: str, variables: dict):
+    """
+    Envía WhatsApp para notificación de resultados de laboratorio.
+    variables: dict con las variables de la plantilla (ej: nombre, tipo_examen)
+    """
+    try:
+        mes = client.messages.create(
+            from_=TWILIO_WHATSAPP,
+            to=f"whatsapp:{patient_phone}",
+            content_sid="HXfb94fc3391548270a3da15f062d83ca2",  # 👉 agrega aquí tu Content SID de plantilla
+            content_variables=json.dumps(variables)
+        )
+        return {"ok": True, "sid": mes.sid}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

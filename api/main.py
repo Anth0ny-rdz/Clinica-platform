@@ -63,7 +63,7 @@ class UserCreate(BaseModel):
     address: Annotated[str, Field(min_length=5)]
     birth_date: Annotated[str, Field(pattern=r'^\d{4}-\d{2}-\d{2}$')]
     rol_id: int
-
+    genre: Optional[str] = None
     seguro_medico: Optional[str] = None
 
 #1
@@ -91,7 +91,7 @@ def create_user(user: UserCreate):
 
         auth_id = auth_user.id
 
-        #  Insertar en users
+        # Insertar en users
         password_hash = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         user_data = {
             "username": user.email.split("@")[0],
@@ -114,14 +114,19 @@ def create_user(user: UserCreate):
             "lastname": user.lastname,
             "telephone": user.telephone,
             "address": user.address,
-            "birth_date": user.birth_date
+            "birth_date": user.birth_date,
+
+            # ⬇️ AGREGADO: consentimiento automático
+            "consentimiento_datos": True,
+            "consentimiento_fecha": datetime.utcnow().isoformat()
         }
+
         profile_insert = supabase.table("user_profile").insert(profile_data).execute()
 
-        #  Si es paciente, insertar en patients
+        # Si es paciente, insertar en patients
         if user.rol_id == 6:  # Paciente
             patient_data = {
-                "doc_id": user.id_number,  # cédula
+                "doc_id": user.id_number,
                 "names": user.name,
                 "lastname": user.lastname,
                 "birth_date": user.birth_date,
@@ -129,7 +134,6 @@ def create_user(user: UserCreate):
                 "telephone": user.telephone,
                 "email": user.email,
                 "seguro_medico": user.seguro_medico,
-                # Campos clínicos aún vacíos
                 "entry_date": None,
                 "entry_hour": None,
                 "discharge_date": None,
@@ -142,17 +146,22 @@ def create_user(user: UserCreate):
                 "parroquia": None,
                 "ciudad": None,
                 "provincia": None,
-                "genre": None,
+                "genre": user.genre,
             }
             supabase.table("patients").insert(patient_data).execute()
 
-        return {"message": "✅ Usuario y paciente creados correctamente", "auth_id": auth_id, "user_id": user_id}
+        return {
+            "message": "✅ Usuario y paciente creados correctamente",
+            "auth_id": auth_id,
+            "user_id": user_id
+        }
 
     except HTTPException as he:
         raise he
     except Exception as e:
         print("❌ Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
 
 #2   
 @app.get("/patients")
@@ -892,14 +901,13 @@ def get_doctors_by_specialty(especialidad_id: int):
 def get_encounters_by_patient(patient_id: int):
     """
     Devuelve todas las historias médicas (encounters) de un paciente específico,
-    incluyendo datos del médico (desde doctors + specialties) y signos vitales (desde signus_vitalis).
+    incluyendo datos del médico (doctors + specialties) y signos vitales.
     """
     try:
-        # 1️⃣ Obtener todos los encounters del paciente
-        encounters = (
+        # 1️⃣ Obtener encounters
+        res = (
             supabase.table("encounters")
-            .select(
-                """
+            .select("""
                 encounter_id,
                 patient_id,
                 doctor_id,
@@ -915,70 +923,73 @@ def get_encounters_by_patient(patient_id: int):
                 observations,
                 fecha_para_control,
                 vital_sign_id
-                """
-            )
+            """)
             .eq("patient_id", patient_id)
             .order("date", desc=True)
             .execute()
-            .data
         )
+
+        encounters = res.data or []
 
         if not encounters:
             return []
 
-        # 2️⃣ Obtener los doctores vinculados
-        doctor_ids = [e["doctor_id"] for e in encounters if e.get("doctor_id")]
-        doctors = (
-            supabase.table("doctors")
-            .select("doctors_id, nombres, apellidos, especialidad_id, subespecialidad")
-            .in_("doctors_id", doctor_ids)
-            .execute()
-            .data
-        ) if doctor_ids else []
+        # 2️⃣ Obtener doctores asociados
+        doctor_ids = list({e.get("doctor_id") for e in encounters if e.get("doctor_id")})
+
+        doctors = []
+        if doctor_ids:
+            dr_res = (
+                supabase.table("doctors")
+                .select("doctors_id, nombres, apellidos, especialidad_id, subespecialidad")
+                .in_("doctors_id", doctor_ids)
+                .execute()
+            )
+            doctors = dr_res.data or []
 
         doctor_dict = {d["doctors_id"]: d for d in doctors}
 
-        # 3️⃣ Obtener nombres de especialidades
+        # 3️⃣ Obtener especialidades
         specialty_ids = [d["especialidad_id"] for d in doctors if d.get("especialidad_id")]
-        specialties = (
-            supabase.table("specialties")
-            .select("especialidad_id, name")
-            .in_("especialidad_id", specialty_ids)
-            .execute()
-            .data
-        ) if specialty_ids else []
+
+        specialties = []
+        if specialty_ids:
+            sp_res = (
+                supabase.table("specialties")
+                .select("especialidad_id, name")
+                .in_("especialidad_id", specialty_ids)
+                .execute()
+            )
+            specialties = sp_res.data or []
 
         specialty_dict = {s["especialidad_id"]: s["name"] for s in specialties}
 
-        # 4️⃣ Obtener los signos vitales
-        vital_ids = [str(e["vital_sign_id"]) for e in encounters if e.get("vital_sign_id")]
-        vitals = (
-            supabase.table("signus_vitalis")
-            .select("vital_sign_id, presion_arterial, pulso_xmin, temperatura, fecha")
-            .in_("vital_sign_id", vital_ids)
-            .execute()
-            .data
-        ) if vital_ids else []
+        # 4️⃣ Obtener signos vitales
+        vital_ids = [e["vital_sign_id"] for e in encounters if e.get("vital_sign_id")]
 
-        # Normalizamos los IDs a string para evitar problemas de coincidencia
-        vital_dict = {str(v["vital_sign_id"]): v for v in vitals}
+        vitals = []
+        if vital_ids:
+            vt_res = (
+                supabase.table("signus_vitalis")
+                .select("vital_sign_id, presion_arterial, pulso_xmin, temperatura, fecha")
+                .in_("vital_sign_id", vital_ids)
+                .execute()
+            )
+            vitals = vt_res.data or []
 
-        # 5️⃣ Combinar toda la información
+        vital_dict = {v["vital_sign_id"]: v for v in vitals}
+
+        # 5️⃣ Construir respuesta
         full_data = []
         for e in encounters:
             doc = doctor_dict.get(e.get("doctor_id"), {})
-            vit = vital_dict.get(str(e.get("vital_sign_id")), {})  # 👈 clave: comparar como string
+            vit = vital_dict.get(e.get("vital_sign_id"), {})
 
-            especialidad_nombre = "—"
-            if doc.get("especialidad_id"):
-                especialidad_nombre = specialty_dict.get(doc["especialidad_id"], "—")
-
-            # 🔍 Depuración opcional
-            print(f"🩺 Encounter {e['encounter_id']} | Doctor ID={e.get('doctor_id')} | Vital ID={e.get('vital_sign_id')} -> {vit}")
+            especialidad_nombre = specialty_dict.get(doc.get("especialidad_id"), "—")
 
             full_data.append({
                 "encounter_id": e["encounter_id"],
-                "date": e["date"],
+                "date": e.get("date"),
                 "hour": e.get("hour"),
                 "reason_for_consultation": e.get("reason_for_consultation"),
                 "main_symptoms": e.get("main_symptoms"),
@@ -989,15 +1000,17 @@ def get_encounters_by_patient(patient_id: int):
                 "treatment": e.get("treatment"),
                 "observations": e.get("observations"),
                 "fecha_para_control": e.get("fecha_para_control"),
-                "doctor_name": f"{doc.get('nombres', '(Médico no asignado)')} {doc.get('apellidos', '')}".strip(),
+
+                "doctor_name": f"{doc.get('nombres','(Médico no asignado)')} {doc.get('apellidos','')}".strip(),
                 "especialidad": especialidad_nombre,
-                "subespecialidad": doc.get("subespecialidad", "—"),
+                "subespecialidad": doc.get("subespecialidad","—"),
+
                 "vital_signs": {
                     "presion_arterial": vit.get("presion_arterial", "—"),
                     "pulso_xmin": vit.get("pulso_xmin", "—"),
                     "temperatura": vit.get("temperatura", "—"),
                     "fecha": vit.get("fecha", "—"),
-                },
+                }
             })
 
         return full_data
@@ -1005,6 +1018,7 @@ def get_encounters_by_patient(patient_id: int):
     except Exception as e:
         print("❌ Error obteniendo historias del paciente:", str(e))
         raise HTTPException(status_code=500, detail="Error al obtener historias del paciente")
+
 
 #21
 @app.get("/encounters/detail/{encounter_id}")
@@ -1848,12 +1862,16 @@ def get_orders_by_encounter(encounter_id: int):
             supabase.table("exam_orders")
             .select("""
                 *,
-                order_exam_items (*)
+                order_exam_items (
+                    *,
+                    exam_type(name)
+                )
             """)
             .eq("encounter_id", encounter_id)
             .execute()
         )
         return res.data
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1896,45 +1914,63 @@ def update_exam_item_status(item_id: int, body: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 #45
+from services.twilio_service import send_lab_result_whatsapp
+# o si tienes otra función, me dices el nombre exacto
+
 @app.post("/exam-items/{item_id}/results")
 def upload_exam_result(
     item_id: int,
     body: dict = Body(...)
 ):
-    """
-    body = {
-        "file_url": "results/archivo.pdf",
-        "uploaded_by": 123
-    }
-    """
     try:
-        print("📥 BODY RECIBIDO:", body)
+        print("\n================= 🟦 INICIO SUBIDA DE RESULTADO 🟦 =================")
+        print("📥 Body recibido:", body)
 
+        # -------------------------------------------------------------------
+        # 1️⃣ VALIDAR CAMPOS
+        # -------------------------------------------------------------------
         if "file_url" not in body or "uploaded_by" not in body:
             raise HTTPException(
                 status_code=400,
                 detail="Faltan campos: file_url o uploaded_by"
             )
 
-        # 1️⃣ Insertar resultado
+        file_url = body["file_url"]
+        uploaded_by = int(body["uploaded_by"])
+
+        print("🧩 item_id:", item_id)
+        print("🧩 file_url:", file_url)
+        print("🧩 uploaded_by:", uploaded_by)
+
+        # -------------------------------------------------------------------
+        # 2️⃣ GUARDAR RESULTADO EN SUPABASE
+        # -------------------------------------------------------------------
+        print("\n📝 Insertando resultado...")
         res = (
             supabase.table("exam_results")
             .insert({
                 "item_id": item_id,
-                "file_url": body["file_url"],
-                "uploaded_by": body["uploaded_by"],
+                "file_url": file_url,
+                "uploaded_by": uploaded_by,
                 "uploaded_at": datetime.utcnow().isoformat()
             })
             .execute()
         )
+        print("📌 Resultado insert:", res.data)
 
-        # 2️⃣ Cambiar estado del item
+        # -------------------------------------------------------------------
+        # 3️⃣ MARCAR EL ITEM COMO COMPLETADO
+        # -------------------------------------------------------------------
+        print("\n🔄 Actualizando estado del item...")
         supabase.table("order_exam_items") \
             .update({"status": "completado"}) \
             .eq("item_id", item_id) \
             .execute()
 
-        # 3️⃣ Obtener order_id del item
+        # -------------------------------------------------------------------
+        # 4️⃣ OBTENER order_id
+        # -------------------------------------------------------------------
+        print("\n🔍 Buscando order_id...")
         query_item = (
             supabase.table("order_exam_items")
             .select("order_id")
@@ -1943,22 +1979,98 @@ def upload_exam_result(
             .execute()
         )
         order_id = query_item.data["order_id"]
-
         print("📌 order_id encontrado:", order_id)
 
-        # 4️⃣ Marcar también la orden como completada
+        # -------------------------------------------------------------------
+        # 5️⃣ MARCAR LA ORDEN COMO COMPLETADA
+        # -------------------------------------------------------------------
+        print("\n🔄 Marcando exam_orders como completado...")
         supabase.table("exam_orders") \
             .update({"state": "completado"}) \
             .eq("order_id", order_id) \
             .execute()
 
-        print("🟢 Orden marcada como completada")
+        # -------------------------------------------------------------------
+        # 6️⃣ OBTENER INFO PARA WHATSAPP — Paciente + Tipo examen
+        # -------------------------------------------------------------------
+        print("\n================= 🔍 BUSCANDO INFORMACIÓN PARA WHATSAPP =================")
 
-        return res.data[0]
+       # 1️⃣ Obtener order_id + examtype_id desde item
+        item_info = (
+            supabase.table("order_exam_items")
+            .select("order_id, examtype_id")
+            .eq("item_id", item_id)
+            .single()
+            .execute()
+        ).data
+
+        order_id = item_info["order_id"]
+        examtype_id = item_info["examtype_id"]
+
+        # 2️⃣ Obtener NOMBRE del examen
+        examtype = (
+            supabase.table("exam_type")
+            .select("name")
+            .eq("examtype_id", examtype_id)
+            .single()
+            .execute()
+        ).data
+
+        exam_name = examtype["name"]
+
+        # 3️⃣ Obtener INFO DEL PACIENTE desde exam_orders
+        order_info = (
+            supabase.table("exam_orders")
+            .select("patients(names, lastname, telephone), patient_id")
+            .eq("order_id", order_id)
+            .single()
+            .execute()
+        ).data
+
+        patient = order_info["patients"]
+        patient_full_name = f"{patient['names']} {patient['lastname']}"
+        patient_phone = patient["telephone"]
+
+        print("👤 Paciente:", patient_full_name)
+        print("📞 Teléfono:", patient_phone)
+        print("🧪 Examen:", exam_name)
+
+        # -------------------------------------------------------------------
+        # 7️⃣ PREPARAR VARIABLES PARA TWILIO
+        # -------------------------------------------------------------------
+        variables = {
+            "1": patient_full_name,
+            "2": exam_name
+        }
+
+        print("📨 Variables WhatsApp:", variables)
+
+        # Formato internacional
+        phone_final = f"+593{patient_phone.lstrip('0')}"
+        print("📞 Número final para Twilio:", phone_final)
+
+        # -------------------------------------------------------------------
+        # 8️⃣ ENVIAR WHATSAPP
+        # -------------------------------------------------------------------
+        print("\n📤 Enviando WhatsApp...")
+        whatsapp_status = send_lab_result_whatsapp(phone_final, variables)
+        print("📬 Resultado WhatsApp:", whatsapp_status)
+
+        print("\n================= 🟩 FIN SUBIDA DE RESULTADO 🟩 =================\n")
+
+        return {
+            "message": "✅ Resultado registrado correctamente",
+            "whatsapp_status": whatsapp_status,
+            "saved_result": res.data[0]
+        }
+
+    except HTTPException as he:
+        print("❗ Error HTTP:", he.detail)
+        raise he
 
     except Exception as e:
-        print("❌ ERROR EN EXAM-RESULTS:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        print("🔥 ERROR NO CONTROLADO:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 #46
 @app.get("/exam-results/signed-url/{item_id}")
