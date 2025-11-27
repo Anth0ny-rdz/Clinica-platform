@@ -25,31 +25,49 @@ export default function CalendarioCitas() {
   // =====================================
   const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null)
 
- useEffect(() => {
-  const loadDoctor = async () => {
-    try {
-      if (!user?.auth_id) return
-
-      const doctor = await fetchDoctorByAuth(user.auth_id)
-
-      console.log("🩺 Respuesta API doctor:", doctor)
-
-      // ✅ TU KEY REAL ES ESTA
-      setDoctorProfileId(doctor.doctor_profile_id)
-
-    } catch (err) {
-      console.error("❌ Error cargando doctor", err)
-      setMessage("❌ No se pudo cargar el perfil del médico.")
-    } finally {
-      setLoadingDoctor(false)
-    }
+  // =====================================
+  // 🛡️ FULLSCREEN LOADER SI USER NO ESTÁ LISTO
+  // =====================================
+  if (!user || !user.auth_id) {
+    return (
+      <div style={{
+        height: "90vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        flexDirection: "column",
+        gap: "1rem"
+      }}>
+        <div className="spinner-border text-primary" style={{ width: "3rem", height: "3rem" }}></div>
+        <p className="fw-semibold mt-2">Cargando usuario...</p>
+      </div>
+    )
   }
 
-  loadDoctor()
-}, [user])
+  // =====================================
+  // 🩺 Cargar el doctor vinculado al auth_id
+  // =====================================
+  useEffect(() => {
+    const loadDoctor = async () => {
+      try {
+        if (!user?.auth_id) return
+
+        const doctor = await fetchDoctorByAuth(user.auth_id)
+        setDoctorProfileId(doctor.doctor_profile_id)
+
+      } catch (err) {
+        console.error("❌ Error cargando doctor", err)
+        setMessage("❌ No se pudo cargar el perfil del médico.")
+      } finally {
+        setLoadingDoctor(false)
+      }
+    }
+
+    loadDoctor()
+  }, [user])
 
   // =====================================
-  // 📅 Cargar citas SOLO del médico logeado
+  // 📅 Cargar citas del médico
   // =====================================
   useEffect(() => {
     const loadEvents = async () => {
@@ -57,7 +75,6 @@ export default function CalendarioCitas() {
 
       try {
         const data = await fetchAppointmentsCalendarByDoctor(doctorProfileId)
-        console.log("📆 doctorProfileId:", doctorProfileId)
 
         const formatted: EventInput[] = data.map((a: any) => ({
           id: String(a.id),
@@ -152,9 +169,28 @@ export default function CalendarioCitas() {
     }
   }
 
-  if (loadingDoctor)
-    return <p className="text-center mt-5">Cargando calendario...</p>
+  // =====================================
+  // 🟦 LOADER MIENTRAS BUSCAMOS EL DOCTOR
+  // =====================================
+  if (loadingDoctor) {
+    return (
+      <div style={{
+        height: "90vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        flexDirection: "column",
+        gap: "1rem"
+      }}>
+        <div className="spinner-border text-success" style={{ width: "3rem", height: "3rem" }}></div>
+        <p className="fw-semibold mt-2">Cargando calendario del médico...</p>
+      </div>
+    )
+  }
 
+  // =====================================
+  // 📅 VISTA NORMAL DEL CALENDARIO
+  // =====================================
   return (
     <div className="d-flex justify-content-center align-items-start gap-4 mt-4 px-3">
 
@@ -246,6 +282,7 @@ export default function CalendarioCitas() {
                 <Button variant="info" onClick={() => handleStatusChange('atendida')}>
                   Atendida
                 </Button>
+
                 <Button
                   variant="primary"
                   onClick={() => navigate(`/medico/pacientes/${selectedEvent.doc_id}`)}
@@ -253,6 +290,7 @@ export default function CalendarioCitas() {
                   Ver Perfil del Paciente
                 </Button>
               </div>
+
             </>
           ) : (
             <p className="text-muted text-center mt-5">

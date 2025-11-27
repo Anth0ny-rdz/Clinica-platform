@@ -4,6 +4,8 @@ import { fetchCompletedExams, getSignedResultUrl } from "@/services/labService";
 
 export default function Completados() {
   const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const [filters, setFilters] = useState({
     date: "",
     examtype: "",
@@ -13,8 +15,17 @@ export default function Completados() {
 
   const [message, setMessage] = useState<string | null>(null);
 
+  // Debounce
+  useEffect(() => {
+    const timer = setTimeout(() => load(), 300);
+    return () => clearTimeout(timer);
+  }, [filters]);
+
   async function load() {
     try {
+      setLoading(true);
+      setMessage(null);
+
       const cleanFilters: any = {};
       Object.entries(filters).forEach(([k, v]) => {
         if (v) cleanFilters[k] = v;
@@ -24,12 +35,19 @@ export default function Completados() {
       setItems(data);
     } catch (err: any) {
       setMessage(err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  function clearFilters() {
+    setFilters({
+      date: "",
+      examtype: "",
+      patient: "",
+      doctor: "",
+    });
+  }
 
   return (
     <Card className="shadow p-4">
@@ -37,11 +55,12 @@ export default function Completados() {
 
       {/* FILTROS */}
       <div className="d-flex gap-3 flex-wrap mb-4">
-        <Form.Control
+
+        {/* <Form.Control
           type="date"
           value={filters.date}
           onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-        />
+        /> */}
 
         <Form.Control
           placeholder="Tipo de examen"
@@ -61,7 +80,9 @@ export default function Completados() {
           onChange={(e) => setFilters({ ...filters, doctor: e.target.value })}
         />
 
-        <Button onClick={load}>Filtrar</Button>
+        <Button variant="secondary" onClick={clearFilters}>
+          Limpiar
+        </Button>
       </div>
 
       {message && <Alert variant="danger">{message}</Alert>}
@@ -81,8 +102,6 @@ export default function Completados() {
           {items.map((i) => {
             const p = i.exam_orders?.patients;
             const d = i.exam_orders?.doctors;
-
-            // exam_results ES UN ARRAY → tomamos el primero
             const result =
               Array.isArray(i.exam_results) && i.exam_results.length > 0
                 ? i.exam_results[0]
@@ -90,19 +109,15 @@ export default function Completados() {
 
             return (
               <tr key={i.item_id}>
-                {/* PACIENTE */}
+
                 <td>{p ? `${p.names} ${p.lastname}` : "—"}</td>
 
-                {/* MÉDICO */}
                 <td>{d ? `${d.nombres} ${d.apellidos}` : "—"}</td>
 
-                {/* EXAMEN */}
                 <td>{i.exam_type?.name ?? "—"}</td>
 
-                {/* FECHA */}
                 <td>{result?.uploaded_at ?? "—"}</td>
 
-                {/* RESULTADO */}
                 <td>
                   {result?.file_url ? (
                     <Button
@@ -110,30 +125,11 @@ export default function Completados() {
                       variant="primary"
                       onClick={async () => {
                         try {
-                          const itemId = i.item_id;
-
-                          if (!itemId) {
-                            console.error("❌ item_id no existe:", i);
-                            alert("No se encontró el archivo del examen.");
-                            return;
-                          }
-
-                          const data = await getSignedResultUrl(itemId);
-
-                          // 🔥 SOPORTE PARA AMBOS FORMATS
+                          const data = await getSignedResultUrl(i.item_id);
                           const url = data?.signed_url || data?.url;
-
-                          if (!url) {
-                            console.error("❌ URL firmada no recibida:", data);
-                            alert("No se pudo obtener la URL firmada.");
-                            return;
-                          }
-
-                          // Abrir el archivo
-                          window.open(url, "_blank");
+                          if (url) window.open(url, "_blank");
                         } catch (error) {
-                          console.error("Error obteniendo URL firmada:", error);
-                          alert("No se pudo obtener el resultado del examen.");
+                          alert("No se pudo obtener el archivo.");
                         }
                       }}
                     >

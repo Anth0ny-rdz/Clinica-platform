@@ -1,11 +1,22 @@
 const API_URL = "http://127.0.0.1:8000";
 
 // 🟦 Exámenes pendientes
-export async function fetchExamPendientes() {
-  const res = await fetch(`${API_URL}/lab/pendientes`);
+export async function fetchExamPendientes(filters: any = {}) {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.append(key, String(value));
+  });
+
+  const res = await fetch(`${API_URL}/lab/pendientes?${params.toString()}`);
+
   if (!res.ok) throw new Error("Error cargando exámenes pendientes");
+
   return res.json();
 }
+
+
+
 
 // 🟧 Detalle de item + posible resultado
 export async function fetchExamItemDetail(item_id: number) {
@@ -57,5 +68,22 @@ export async function fetchCompletedExams(filters: any = {}) {
 
   const res = await fetch(`${API_URL}/lab/completados?${params}`);
   if (!res.ok) throw new Error("Error cargando exámenes completados");
+  return res.json();
+}
+
+export async function fetchExamPendientesFiltrado(filters: any = {}) {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.append(key, String(value));
+  });
+
+  const res = await fetch(`${API_URL}/lab/pendientes/filtrar?${params.toString()}`);
+
+  if (!res.ok) {
+    const msg = await res.text();
+    throw new Error("Error cargando exámenes pendientes filtrados: " + msg);
+  }
+
   return res.json();
 }

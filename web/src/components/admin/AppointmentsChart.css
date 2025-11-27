@@ -1,0 +1,136 @@
+/* src/components/AppointmentsChart.css */
+.appointments-chart-small {
+  background: white;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  height: 100%;
+  max-width: 400px;
+  margin: 0;
+  margin-right: 20px;
+}
+
+.appointments-chart-small h3 {
+  color: #2c3e50;
+  margin-bottom: 15px;
+  text-align: center;
+  font-size: 1rem;
+}
+
+/* RESUMEN MINI */
+.summary-mini {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.mini-item {
+  text-align: center;
+  padding: 8px 5px;
+  border-radius: 6px;
+  background: #f8f9fa;
+  border-left: 2px solid;
+}
+
+.mini-item:nth-child(1) {
+  border-left-color: #43E0DA; /* 🔥 NUEVO COLOR */
+}
+
+.mini-item:nth-child(2) {
+  border-left-color: #27ae60;
+}
+
+.mini-item:nth-child(3) {
+  border-left-color: #9b59b6;
+}
+
+.mini-label {
+  display: block;
+  font-size: 0.6rem;
+  color: #7f8c8d;
+  margin-bottom: 2px;
+}
+
+.mini-value {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+/* GRÁFICO MINI */
+.chart-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.month-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.month-abbr {
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #2c3e50;
+  min-width: 25px;
+}
+
+.bars-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.bar-mini {
+  height: 16px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 5px;
+  min-width: 20px;
+  transition: all 0.2s ease;
+}
+
+.bar-mini:hover {
+  transform: scale(1.03);
+}
+
+.agendadas-bar {
+  background: linear-gradient(to right, #43E0DA, #36C9C4); /* 🔥 NUEVO COLOR */
+}
+
+.atendidas-bar {
+  background: linear-gradient(to right, #27ae60, #219653);
+}
+
+.bar-text {
+  font-size: 0.6rem;
+  font-weight: bold;
+  color: white;
+  text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+}
+
+.chart-loading {
+  text-align: center;
+  padding: 30px;
+  color: #7f8c8d;
+  max-width: 400px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .appointments-chart-small {
+    max-width: 350px;
+    padding: 12px;
+    margin-right: 0;
+  }
+}

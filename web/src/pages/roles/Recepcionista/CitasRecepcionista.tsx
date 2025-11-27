@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Modal, Button, Card, Form, Table, Alert } from 'react-bootstrap'
-
+import { useNavigate } from 'react-router-dom'
 import { createAppointment, fetchAppointments, fetchAvailableHours } from '@/services/appointmentService'
 import { fetchUserProfileId } from '@/services/userService'
 import { fetchAllPatients } from '@/services/patientService'
@@ -11,6 +11,8 @@ import { useAuth } from '@/context/AuthContext'
 
 export default function CitasRecepcionista() {
   const { user } = useAuth()
+
+  const navigate = useNavigate()
 
   const [appointments, setAppointments] = useState<any[]>([])
   const [specialties, setSpecialties] = useState<any[]>([])
@@ -175,6 +177,14 @@ export default function CitasRecepcionista() {
     <div className="container mt-4">
       <Card className="shadow p-4">
         <h2 className="mb-3">📅 Agendamiento de Citas</h2>
+
+        <Button
+        variant="primary"
+        className="mb-3"
+        onClick={() => navigate("/recepcionista/usuarios")}
+      >
+        ➕ Registrar Paciente
+      </Button>
 
         {message && (
           <Alert variant={message.startsWith("✅") ? "success" : "danger"}>

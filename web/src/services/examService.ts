@@ -91,3 +91,9 @@ export async function fetchExamResultsByItem(item_id: number) {
 
   return await res.json();
 }
+
+export async function fetchExamCategories() {
+  const res = await fetch(`${API_URL}/exam-categories`);
+  if (!res.ok) throw new Error("Error obteniendo categorías de examen");
+  return await res.json();
+}

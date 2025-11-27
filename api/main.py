@@ -1541,43 +1541,47 @@ def get_admissions_by_doctor(doctor_profile_id: int):
 #34
 @app.get("/doctor/by_auth/{auth_id}")
 def get_doctor_by_auth(auth_id: str):
-
     try:
         # 1️⃣ Obtener user_id desde user_profile
         profile = (
             supabase.table("user_profile")
             .select("user_id")
             .eq("auth_id", auth_id)
-            .single()
+            .limit(1)
             .execute()
         )
 
+        # Aquí profile.data es SIEMPRE una lista (vacía o con 1 elemento)
         if not profile.data:
             raise HTTPException(status_code=404, detail="Perfil no encontrado.")
 
-        user_id = profile.data["user_id"]
+        user_id = profile.data[0]["user_id"]   # ✔ CORRECTO
 
         # 2️⃣ Buscar doctor en la tabla REAL (doctors)
         doctor = (
             supabase.table("doctors")
             .select("doctors_id, especialidad_id")
             .eq("user_id", user_id)
-            .single()
+            .limit(1)
             .execute()
         )
 
         if not doctor.data:
             raise HTTPException(status_code=404, detail="Doctor no encontrado.")
 
+        doctor_row = doctor.data[0]  # ✔ CORRECTO
+
         return {
             "user_id": user_id,
-            "doctor_profile_id": doctor.data["doctors_id"],        # 👈 CAMPO REAL
-            "specialty_id": doctor.data["especialidad_id"]         # 👈 CAMPO REAL
+            "doctor_profile_id": doctor_row["doctors_id"],
+            "specialty_id": doctor_row["especialidad_id"]
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         print("❌ Error doctor por auth:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno en el servidor")
 
 #35
 @app.get("/admissions/{admission_id}")
@@ -1743,32 +1747,47 @@ def get_calendar_by_doctor(doctor_id: int):
 
         for a in query.data:
 
-            # -----------------------------------------
-            #  FIX: extraer solo YYYY-MM-DD de la fecha
-            # -----------------------------------------
-            date_only = a["date"].split("T")[0]   # "2025-11-18"
-            time_str = a["time"]                  # "14:30:00"
+            # --------------------------
+            # Patiente y doctor seguros
+            # --------------------------
+            patient = a.get("patients") or {}
+            doctor = a.get("doctors") or {}
 
-            start_iso = f"{date_only}T{time_str}"
+            patient_name = f"{patient.get('names', 'Paciente')} {patient.get('lastname', '')}"
+            doctor_name = f"Dr. {doctor.get('nombres', '')} {doctor.get('apellidos', '')}"
 
+            # --------------------------
+            # Fecha segura
+            # --------------------------
+            date_val = a.get("date") or "1970-01-01"
+            time_val = a.get("time") or "00:00:00"
+
+            try:
+                date_only = date_val.split("T")[0]
+            except:
+                date_only = "1970-01-01"
+
+            start_iso = f"{date_only}T{time_val}"
+
+            # --------------------------
+            # Evento seguro
+            # --------------------------
             events.append({
                 "id": a["appointment_id"],
-                "title": (
-                    f"{a['patients']['names']} {a['patients']['lastname']} "
-                    f"con Dr. {a['doctors']['nombres']} {a['doctors']['apellidos']}"
-                ),
+                "title": f"{patient_name} con {doctor_name}",
                 "start": start_iso,
-                "status": a["status"],
-                "reason": a["reason"],
-                "doc_id": a["patients"]["doc_id"],
-                "patient_id": a["patients"]["doc_id"],
+                "status": a.get("status"),
+                "reason": a.get("reason"),
+                "doc_id": patient.get("doc_id"),
+                "patient_id": patient.get("doc_id"),
             })
 
         return events
 
     except Exception as e:
         print("❌ Error en calendario:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno en el servidor")
+
 
 #40
 ##Endpoint para Examenes medicos
@@ -2500,46 +2519,222 @@ def get_completed_exams(
     doctor: str | None = None
 ):
     try:
-        query = supabase.table("order_exam_items").select(
-            """
-            item_id,
-            exam_type:examtype_id(name),
-            exam_results(file_url, uploaded_at),
-            exam_orders:order_id(
-                doctors(nombres, apellidos),
-                patients(names, lastname)
+        # --------------------------
+        # 1️⃣ Buscar examtype_id por nombre
+        # --------------------------
+        examtype_ids = None
+        if examtype:
+            types_res = (
+                supabase.table("exam_type")
+                .select("examtype_id")
+                .ilike("name", f"%{examtype}%")
+                .execute()
             )
+            examtype_ids = [t["examtype_id"] for t in types_res.data]
+
+        # --------------------------
+        # 2️⃣ Filtrar por paciente → obtener order_id reales
+        # --------------------------
+        order_ids_from_patient = None
+        if patient:
+            patients_res = (
+                supabase.table("patients")
+                .select("patient_id")
+                .ilike("names", f"%{patient}%")
+                .execute()
+            )
+            patient_ids = [p["patient_id"] for p in patients_res.data]
+
+            if patient_ids:
+                orders_res = (
+                    supabase.table("exam_orders")
+                    .select("order_id")
+                    .in_("patient_id", patient_ids)
+                    .execute()
+                )
+                order_ids_from_patient = [o["order_id"] for o in orders_res.data]
+            else:
+                return []
+
+        # --------------------------
+        # 3️⃣ Filtrar por doctor → obtener order_id reales
+        # --------------------------
+        order_ids_from_doctor = None
+        if doctor:
+            doctors_res = (
+                supabase.table("doctors")
+                .select("doctors_id")
+                .ilike("nombres", f"%{doctor}%")
+                .execute()
+            )
+            doctor_ids = [d["doctors_id"] for d in doctors_res.data]
+
+            if doctor_ids:
+                orders_res = (
+                    supabase.table("exam_orders")
+                    .select("order_id")
+                    .in_("doctor_id", doctor_ids)
+                    .execute()
+                )
+                order_ids_from_doctor = [o["order_id"] for o in orders_res.data]
+            else:
+                return []
+
+        # --------------------------
+        # 4️⃣ Consulta base
+        # --------------------------
+        query = (
+            supabase.table("order_exam_items")
+            .select(
+                """
+                item_id,
+                examtype_id,
+                exam_type(name),
+                exam_results(file_url, uploaded_at),
+                exam_orders:order_id(
+                    doctors(nombres, apellidos),
+                    patients(names, lastname)
+                )
             """
-        ).eq("status", "completado")
+            )
+            .eq("status", "completado")
+        )
 
-        # ---- FILTROS DINÁMICOS ----
-
-        # 📅 FILTRO POR FECHA
+        # --------------------------
+        # 5️⃣ APLICAR FILTROS
+        # --------------------------
         if date:
             query = query.filter("exam_results.uploaded_at", "ilike", f"%{date}%")
 
-        # 🔬 FILTRO POR TIPO DE EXAMEN
-        if examtype:
-            query = query.filter("examtype_id.name", "ilike", f"%{examtype}%")
+        if examtype and examtype_ids:
+            query = query.in_("examtype_id", examtype_ids)
 
-        # 🧑‍🤝‍🧑 FILTRO POR PACIENTE
-        if patient:
-            query = query.filter("order_id.patients.names", "ilike", f"%{patient}%")
+        if order_ids_from_patient:
+            query = query.in_("order_id", order_ids_from_patient)
 
-        # 👨‍⚕️ FILTRO POR DOCTOR
-        if doctor:
-            query = query.filter("order_id.doctors.nombres", "ilike", f"%{doctor}%")
+        if order_ids_from_doctor:
+            query = query.in_("order_id", order_ids_from_doctor)
 
         res = query.execute()
-        
-        # 🧹 Filtrar solo items donde exam_type NO sea None (relación válida)
-        filtered_data = [
-            item for item in res.data 
-            if item.get("exam_type") is not None
-        ]
-        
-        return filtered_data
+
+        return res.data
 
     except Exception as e:
         print("❌ Error completados:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.get("/exam-categories")
+def get_exam_categories():
+    try:
+        res = (
+            supabase
+            .table("exam_category")
+            .select("category_id, name")
+            .order("name")
+            .execute()
+        )
+
+        # 🔥 Convertir APIResponse → dict
+        res = res.model_dump()
+
+        # Manejo de error
+        if res.get("error"):
+            raise HTTPException(status_code=400, detail=res["error"]["message"])
+
+        return res.get("data", [])
+
+    except Exception as e:
+        print("❌ Error cargando categorías:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/lab/pendientes/filtrar")
+def get_pending_filtered(
+    examtype: str | None = None,
+    patient: str | None = None,
+    doctor: str | None = None,
+):
+    try:
+        # --------------------------
+        # 1️⃣ Buscar examtype_id
+        # --------------------------
+        examtype_ids = None
+        if examtype:
+            types_res = supabase.table("exam_type")\
+                .select("examtype_id")\
+                .ilike("name", f"%{examtype}%")\
+                .execute()
+            examtype_ids = [t["examtype_id"] for t in types_res.data]
+
+        # --------------------------
+        # 2️⃣ Buscar patient_id → order_id
+        # --------------------------
+        order_ids_from_patient = None
+        if patient:
+            patients_res = supabase.table("patients")\
+                .select("patient_id")\
+                .ilike("names", f"%{patient}%")\
+                .execute()
+            patient_ids = [p["patient_id"] for p in patients_res.data]
+
+            if patient_ids:
+                orders_res = supabase.table("exam_orders")\
+                    .select("order_id, patient_id")\
+                    .in_("patient_id", patient_ids)\
+                    .execute()
+                order_ids_from_patient = [o["order_id"] for o in orders_res.data]
+            else:
+                return []
+
+        # --------------------------
+        # 3️⃣ Buscar doctor_id → order_id
+        # --------------------------
+        order_ids_from_doctor = None
+        if doctor:
+            doctors_res = supabase.table("doctors")\
+                .select("doctors_id")\
+                .ilike("nombres", f"%{doctor}%")\
+                .execute()
+            doctor_ids = [d["doctors_id"] for d in doctors_res.data]
+
+            if doctor_ids:
+                orders_res = supabase.table("exam_orders")\
+                    .select("order_id, doctor_id")\
+                    .in_("doctor_id", doctor_ids)\
+                    .execute()
+                order_ids_from_doctor = [o["order_id"] for o in orders_res.data]
+            else:
+                return []
+
+        # --------------------------
+        # 4️⃣ Consulta base
+        # --------------------------
+        query = supabase.table("order_exam_items").select("""
+            item_id,
+            exam_type(name),
+            exam_orders(
+                order_id,
+                observations,
+                doctors(nombres, apellidos),
+                patients(names, lastname, doc_id)
+            )
+        """).eq("status", "pendiente")
+
+        # --------------------------
+        # 5️⃣ Aplicar filtros reales
+        # --------------------------
+        if examtype and examtype_ids:
+            query = query.in_("examtype_id", examtype_ids)
+
+        if order_ids_from_patient:
+            query = query.in_("order_id", order_ids_from_patient)
+
+        if order_ids_from_doctor:
+            query = query.in_("order_id", order_ids_from_doctor)
+
+        res = query.execute()
+        return res.data
+
+    except Exception as e:
+        print("❌ Error:", e)
         raise HTTPException(status_code=500, detail=str(e))

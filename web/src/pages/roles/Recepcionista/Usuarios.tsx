@@ -143,78 +143,227 @@ export default function Usuarios() {
     }
   }
 
-  return (
-    <div style={{ maxWidth: 600, margin: '2rem auto' }}>
-      <h2>Registro de Pacientes</h2>
-      <p style={{ color: '#555' }}>
-        Rol actual: <strong>{user?.rol || 'Desconocido'}</strong>
-      </p>
+return (
+  <div
+    className="container mt-4"
+    style={{
+      maxWidth: 650,
+      background: "white",
+      padding: "2rem",
+      borderRadius: "12px",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+    }}
+  >
+    <h2 className="text-center fw-bold mb-2">Registro de Pacientes</h2>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          background: '#f9f9f9',
-          padding: '2rem',
-          borderRadius: '1rem',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        }}
+    <p className="text-center text-muted mb-4">
+      Rol actual: <strong>{user?.rol || "Desconocido"}</strong>
+    </p>
+
+    {/* ALERTA DE MENSAJE */}
+    {message && (
+      <div
+        className={`alert ${
+          message.startsWith("❌") || message.startsWith("⚠️")
+            ? "alert-danger"
+            : "alert-success"
+        } text-center`}
       >
-        <input name="id_number" placeholder="Cédula" value={form.id_number} onChange={handleChange} required maxLength={10} />
-        <input name="name" placeholder="Nombre" value={form.name} onChange={handleChange} required />
-        <input name="lastname" placeholder="Apellido" value={form.lastname} onChange={handleChange} required />
-        <input type="email" name="email" placeholder="Correo electrónico" value={form.email} onChange={handleChange} required />
-        <input type="password" name="password" placeholder="Contraseña" value={form.password} onChange={handleChange} required minLength={6} />
-        <input type="tel" name="telephone" placeholder="Teléfono (10 dígitos)" value={form.telephone} onChange={handleChange} pattern="\d{10}" required />
-        <input name="address" placeholder="Dirección" value={form.address} onChange={handleChange} required minLength={5} />
-        <input type="date" name="birth_date" value={form.birth_date} onChange={handleChange} required />
+        {message}
+      </div>
+    )}
 
-        {/* Switch seguro médico */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span>¿Tiene seguro médico?</span>
-          <input type="checkbox" checked={tieneSeguro} onChange={handleSeguroSwitch} />
-        </label>
+    {/* FORMULARIO */}
+    <form onSubmit={handleSubmit} className="row g-3">
 
-        {tieneSeguro && (
+      {/* CÉDULA */}
+      <div className="col-md-6">
+        <label className="form-label">Cédula</label>
+        <input
+          className="form-control"
+          name="id_number"
+          placeholder="Cédula"
+          value={form.id_number}
+          onChange={handleChange}
+          required
+          maxLength={10}
+        />
+      </div>
+
+      {/* NOMBRE */}
+      <div className="col-md-6">
+        <label className="form-label">Nombre</label>
+        <input
+          className="form-control"
+          name="name"
+          placeholder="Nombre"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      {/* APELLIDO */}
+      <div className="col-md-6">
+        <label className="form-label">Apellido</label>
+        <input
+          className="form-control"
+          name="lastname"
+          placeholder="Apellido"
+          value={form.lastname}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      {/* CORREO */}
+      <div className="col-md-6">
+        <label className="form-label">Correo electrónico</label>
+        <input
+          type="email"
+          className="form-control"
+          name="email"
+          placeholder="Correo"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      {/* CONTRASEÑA */}
+      <div className="col-md-6">
+        <label className="form-label">Contraseña</label>
+        <input
+          type="password"
+          className="form-control"
+          name="password"
+          placeholder="Contraseña"
+          value={form.password}
+          onChange={handleChange}
+          required
+          minLength={6}
+        />
+      </div>
+
+      {/* TELEFONO */}
+      <div className="col-md-6">
+        <label className="form-label">Teléfono</label>
+        <input
+          type="tel"
+          className="form-control"
+          name="telephone"
+          placeholder="Teléfono (10 dígitos)"
+          value={form.telephone}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      {/* DIRECCION */}
+      <div className="col-12">
+        <label className="form-label">Dirección</label>
+        <input
+          className="form-control"
+          name="address"
+          placeholder="Dirección"
+          value={form.address}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      {/* FECHA DE NACIMIENTO */}
+      <div className="col-md-6">
+        <label className="form-label">Fecha de nacimiento</label>
+        <input
+          type="date"
+          className="form-control"
+          name="birth_date"
+          value={form.birth_date}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      {/* SWITCH SEGURO MÉDICO */}
+      <div className="col-md-6 d-flex align-items-end">
+        <div className="form-check form-switch">
           <input
-            name="seguro_medico"
-            placeholder="Nombre del seguro médico"
-            value={form.seguro_medico ?? ''}
-            onChange={handleChange}
-            required={tieneSeguro}
+            className="form-check-input"
+            type="checkbox"
+            checked={tieneSeguro}
+            onChange={handleSeguroSwitch}
           />
-        )}
+          <label className="form-check-label">¿Tiene seguro médico?</label>
+        </div>
+      </div>
 
+      {/* CAMPO SEGURO MÉDICO */}
+      {tieneSeguro && (
+        <div className="col-12">
+          <label className="form-label">Nombre del seguro médico</label>
+          <input
+            className="form-control"
+            name="seguro_medico"
+            placeholder="Ej: IESS, Cruz Azul..."
+            value={form.seguro_medico ?? ""}
+            onChange={handleChange}
+            required
+          />
+        </div>
+      )}
+
+      {/* ROL */}
+      <div className="col-12">
+        <label className="form-label">Rol</label>
         {puedeAsignarRol ? (
-          <select name="rol_id" value={form.rol_id} onChange={handleChange} required>
-            <option value={0}>Seleccionar rol...</option>
-            {roles.map(r => (
+          <select
+            className="form-select"
+            name="rol_id"
+            value={form.rol_id}
+            onChange={handleChange}
+            required
+          >
+            <option value={0}>Seleccionar...</option>
+            {roles.map((r) => (
               <option key={r.roleid} value={r.roleid}>
                 {r.name}
               </option>
             ))}
           </select>
         ) : (
-          <input type="text" value="Paciente" disabled />
+          <input
+            type="text"
+            className="form-control"
+            value="Paciente"
+            disabled
+          />
         )}
+      </div>
 
-        <button type="submit" disabled={loading}>
-          {loading ? 'Creando paciente...' : 'Registrar paciente'}
+      {/* BOTÓN */}
+      <div className="col-12 mt-2">
+        <button className="btn btn-primary w-100" disabled={loading}>
+          {loading ? "Creando paciente..." : "Registrar paciente"}
         </button>
-      </form>
+      </div>
+    </form>
 
-      {message && (
-        <p
-          style={{
-            marginTop: '1rem',
-            color: message.startsWith('❌') || message.startsWith('⚠️') ? 'red' : 'green',
-          }}
-        >
-          {message}
-        </p>
-      )}
-    </div>
-  )
+    {/* SEPARADOR MENSAJE FINAL */}
+    {message && (
+      <p
+        className="text-center mt-3"
+        style={{
+          color:
+            message.startsWith("❌") || message.startsWith("⚠️")
+              ? "red"
+              : "green",
+        }}
+      >
+        {message}
+      </p>
+    )}
+  </div>
+)
+
 }

@@ -41,16 +41,6 @@ export default function HeaderAdmin() {
         <Link to="/admin/usuarios" style={{ color: 'white', textDecoration: 'none' }}>
           Usuarios
         </Link>
-        <Link to="/admin/citas" style={{ color: 'white', textDecoration: 'none' }}>
-          Citas
-        </Link>
-        <Link to="/admin/historias" style={{ color: 'white', textDecoration: 'none' }}>
-          Historias Clínicas
-        </Link>
-        <Link to="/admin/habitaciones" style={{ color: 'white', textDecoration: 'none' }}>
-          Habitaciones
-        </Link>
-
 
         {/* Botón de cerrar sesión */}
         <LogoutButton />

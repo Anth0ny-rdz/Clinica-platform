@@ -2,12 +2,13 @@ import { Routes, Route } from 'react-router-dom'
 import HeaderAdmin from '@/components/HeaderAdmin'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import RoleProtectedRoute from '@/components/RoleProtectedRoute'
-
 import Dashboard from './Dashboard'
+
 import Usuarios from './Usuarios'
 import Citas from './Citas'
 import Historias from './Historias'
 import Habitaciones from './Habitaciones'
+
 
 export default function AdminLayout() {
   return (
@@ -17,6 +18,7 @@ export default function AdminLayout() {
           <HeaderAdmin />
           <main style={{ padding: '2rem' }}>
             <Routes>
+              <Route index element={<Dashboard/>} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="usuarios" element={<Usuarios />} />
               <Route path="citas" element={<Citas />} />

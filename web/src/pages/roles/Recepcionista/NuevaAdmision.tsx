@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Form, Card, Button, Row, Col, Alert, Spinner } from "react-bootstrap"
-
+import { useNavigate } from "react-router-dom"
 import { fetchAllPatients } from "@/services/patientService"
 import { fetchAllDoctorsReal } from "@/services/doctorService"
 import { fetchAllRooms } from "@/services/roomService"
@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext"
 
 export default function NuevaAdmision() {
   const { user } = useAuth()
-
+  const navigate = useNavigate()
   const [patients, setPatients] = useState<any[]>([])
   const [doctors, setDoctors] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
@@ -125,6 +125,13 @@ export default function NuevaAdmision() {
 
         {success && <Alert variant="success">{success}</Alert>}
         {error && <Alert variant="danger">{error}</Alert>}
+        <Button
+        variant="primary"
+        className="mb-3"
+        onClick={() => navigate("/recepcionista/usuarios")}
+      >
+        ➕ Registrar Paciente
+      </Button>
 
         <Form onSubmit={handleSubmit}>
 

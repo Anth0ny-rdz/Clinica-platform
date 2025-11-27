@@ -68,71 +68,94 @@ export default function Pacientes() {
     navigate(`/medico/pacientes/${doc_id}`)
   }
 
-  return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem' }}>
-      <h2> Lista de Pacientes</h2>
+return (
+  <div className="container mt-4" style={{ maxWidth: "1000px" }}>
+    
+    <h2 className="fw-bold text-center mb-4">Lista de Pacientes</h2>
 
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+    {/* FORMULARIO DE BÚSQUEDA */}
+    <form onSubmit={handleSearch} className="row g-2 mb-3">
+      <div className="col-md-6">
         <input
           type="text"
+          className="form-control"
           placeholder="Buscar por cédula..."
           value={searchCedula}
           onChange={(e) => setSearchCedula(e.target.value)}
-          style={{
-            flex: 1,
-            padding: '0.6rem 1rem',
-            border: '1px solid #ccc',
-            borderRadius: '0.5rem',
-          }}
         />
-        <button type="submit" disabled={loading} style={{ padding: '0.6rem 1rem' }}>
-          {loading ? 'Buscando...' : 'Buscar'}
+      </div>
+
+      <div className="col-md-3 d-grid">
+        <button className="btn btn-primary" type="submit" disabled={loading}>
+          {loading ? "Buscando..." : "Buscar"}
         </button>
-        {searchCedula && (
-          <button type="button" onClick={resetSearch} style={{ padding: '0.6rem 1rem', background: '#ddd' }}>
+      </div>
+
+      {searchCedula && (
+        <div className="col-md-3 d-grid">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={resetSearch}
+          >
             Reiniciar
           </button>
-        )}
-      </form>
+        </div>
+      )}
+    </form>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+    {/* ALERTA DE ERROR */}
+    {error && <div className="alert alert-danger">{error}</div>}
 
-      {loading && <p>Cargando pacientes...</p>}
+    {/* LOADING */}
+    {loading && <p className="text-center">Cargando pacientes...</p>}
 
-      {!loading && patients.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f0f0f0', textAlign: 'left' }}>
-              <th style={{ padding: '0.5rem' }}>Cédula</th>
-              <th style={{ padding: '0.5rem' }}>Nombres</th>
-              <th style={{ padding: '0.5rem' }}>Apellidos</th>
-              <th style={{ padding: '0.5rem' }}>Teléfono</th>
-              <th style={{ padding: '0.5rem' }}>Dirección</th>
-              <th style={{ padding: '0.5rem' }}>Correo</th>
-              <th style={{ padding: '0.5rem' }}>Acciones</th>
+    {/* TABLA DE PACIENTES */}
+    {!loading && patients.length > 0 && (
+      <div className="table-responsive shadow-sm">
+        <table className="table table-hover align-middle">
+          <thead className="table-primary">
+            <tr>
+              <th>Cédula</th>
+              <th>Nombres</th>
+              <th>Apellidos</th>
+              <th>Teléfono</th>
+              <th>Dirección</th>
+              <th>Correo</th>
+              <th className="text-center">Acciones</th>
             </tr>
           </thead>
+
           <tbody>
             {patients.map((p) => (
-              <tr key={p.patient_id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '0.5rem' }}>{p.doc_id}</td>
-                <td style={{ padding: '0.5rem' }}>{p.names}</td>
-                <td style={{ padding: '0.5rem' }}>{p.lastname}</td>
-                <td style={{ padding: '0.5rem' }}>{p.telephone}</td>
-                <td style={{ padding: '0.5rem' }}>{p.address}</td>
-                <td style={{ padding: '0.5rem' }}>{p.email}</td>
-                <td style={{ padding: '0.5rem' }}>
-                  <button onClick={() => handleViewDetails(p.doc_id)}>Ver detalles</button>
+              <tr key={p.patient_id}>
+                <td>{p.doc_id}</td>
+                <td>{p.names}</td>
+                <td>{p.lastname}</td>
+                <td>{p.telephone}</td>
+                <td>{p.address}</td>
+                <td>{p.email}</td>
+                <td className="text-center">
+                  <button
+                    className="btn btn-sm btn-outline-primary"
+                    onClick={() => handleViewDetails(p.doc_id)}
+                  >
+                    Ver detalles
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
+      </div>
+    )}
 
-      {!loading && patients.length === 0 && !error && (
-        <p style={{ color: '#555' }}>No hay pacientes registrados.</p>
-      )}
-    </div>
-  )
+    {/* SIN RESULTADOS */}
+    {!loading && patients.length === 0 && !error && (
+      <p className="text-center text-muted mt-3">
+        No hay pacientes registrados.
+      </p>
+    )}
+  </div>
+)
 }
