@@ -40,7 +40,7 @@ def send_lab_result_whatsapp(patient_phone: str, variables: dict):
         mes = client.messages.create(
             from_=TWILIO_WHATSAPP,
             to=f"whatsapp:{patient_phone}",
-            content_sid="HXfb94fc3391548270a3da15f062d83ca2",  # 👉 agrega aquí tu Content SID de plantilla
+            content_sid="HX71fba67b24932c8e6aa92088acc52166",  # 👉 agrega aquí tu Content SID de plantilla
             content_variables=json.dumps(variables)
         )
         return {"ok": True, "sid": mes.sid}

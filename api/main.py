@@ -4,7 +4,7 @@ from pydantic import BaseModel, EmailStr, Field
 from supabase import create_client
 import os
 from dotenv import load_dotenv
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Literal
 import bcrypt
 from fastapi import Body
 from datetime import datetime, timedelta, date
@@ -54,7 +54,8 @@ def validar_cedula_ecuador(cedula: str) -> bool:
 
 # 📦 Modelo del usuario
 class UserCreate(BaseModel):
-    id_number: Annotated[str, Field(min_length=10, max_length=10, pattern=r'^\d{10}$')]
+    tipo_documento: Literal["cedula", "pasaporte"]
+    id_number: Annotated[str, Field(min_length=10, max_length=10)]
     name: Annotated[str, Field(min_length=2)]
     lastname: Annotated[str, Field(min_length=2)]
     email: EmailStr
@@ -70,9 +71,26 @@ class UserCreate(BaseModel):
 @app.post("/create_user")
 def create_user(user: UserCreate):
     try:
-        #  Validar cédula
-        if not validar_cedula_ecuador(user.id_number):
-            raise HTTPException(status_code=400, detail="❌ Cédula ecuatoriana no válida.")
+        if user.tipo_documento == "cedula":
+            if not validar_cedula_ecuador(user.id_number):
+                raise HTTPException(
+                    status_code=400,
+                    detail="❌ Cédula ecuatoriana no válida."
+                )
+
+        elif user.tipo_documento == "pasaporte":
+            import re
+            # Formato típico: 6 a 12 caracteres alfanuméricos
+            if not re.match(r"^[A-Za-z0-9]{6,12}$", user.id_number):
+                raise HTTPException(
+                    status_code=400,
+                    detail="❌ Pasaporte inválido. Debe tener 6–12 caracteres alfanuméricos."
+                )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="❌ Tipo de documento no reconocido."
+            )
 
         #  Verificar duplicado
         existente = supabase.table("user_profile").select("id_number").eq("id_number", user.id_number).execute()
@@ -115,7 +133,7 @@ def create_user(user: UserCreate):
             "telephone": user.telephone,
             "address": user.address,
             "birth_date": user.birth_date,
-
+            "tipo_documento": user.tipo_documento,
             # ⬇️ AGREGADO: consentimiento automático
             "consentimiento_datos": True,
             "consentimiento_fecha": datetime.utcnow().isoformat()
@@ -147,6 +165,8 @@ def create_user(user: UserCreate):
                 "ciudad": None,
                 "provincia": None,
                 "genre": user.genre,
+                "doc_id": user.id_number,
+                "tipo_documento": user.tipo_documento,
             }
             supabase.table("patients").insert(patient_data).execute()
 

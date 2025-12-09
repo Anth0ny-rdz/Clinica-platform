@@ -355,11 +355,17 @@ export default function Usuarios() {
                   required
                 >
                   <option value={0}>Seleccionar...</option>
-                  {roles.map((r) => (
+                  {roles
+                  .filter((r) => {
+                    const nombre = r.name.toLocaleLowerCase(); // respeta tildes
+                    return nombre !== "médico" && nombre !== "paciente";
+                  })
+                  .map((r) => (
                     <option key={r.roleid} value={r.roleid}>
                       {r.name}
                     </option>
-                  ))}
+                  ))
+                }
                 </select>
               </>
             ) : (

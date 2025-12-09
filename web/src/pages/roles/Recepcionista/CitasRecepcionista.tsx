@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Modal, Button, Card, Form, Table, Alert } from 'react-bootstrap'
 import { useNavigate } from 'react-router-dom'
+
 import { createAppointment, fetchAppointments, fetchAvailableHours } from '@/services/appointmentService'
 import { fetchUserProfileId } from '@/services/userService'
 import { fetchAllPatients } from '@/services/patientService'
@@ -11,7 +12,6 @@ import { useAuth } from '@/context/AuthContext'
 
 export default function CitasRecepcionista() {
   const { user } = useAuth()
-
   const navigate = useNavigate()
 
   const [appointments, setAppointments] = useState<any[]>([])
@@ -30,6 +30,8 @@ export default function CitasRecepcionista() {
 
   const [modalHistorial, setModalHistorial] = useState(false)
   const [historial, setHistorial] = useState<any[]>([])
+
+  const [searchAppointment, setSearchAppointment] = useState("")
 
   const [form, setForm] = useState({
     doctor_id: '',
@@ -80,6 +82,15 @@ export default function CitasRecepcionista() {
   }
 
   // ============================
+  // Filtro dinámico de citas
+  // ============================
+  const filteredAppointments = appointments.filter((a) =>
+    `${a.patient_name} ${a.doctor_name} ${a.reason} ${a.status} ${a.date}`
+      .toLowerCase()
+      .includes(searchAppointment.toLowerCase())
+  )
+
+  // ============================
   // Cargar doctores por especialidad
   // ============================
   useEffect(() => {
@@ -113,7 +124,7 @@ export default function CitasRecepcionista() {
   }, [form.doctor_id, form.date])
 
   // ============================
-  // Obtener citas ocupadas (FIX)
+  // Obtener citas ocupadas
   // ============================
   const horasTomadas = appointments
     .filter(
@@ -122,7 +133,7 @@ export default function CitasRecepcionista() {
         c.doctor_profile_id === parseInt(form.doctor_id) &&
         c.date === form.date
     )
-    .map((c) => c.time.slice(0, 5)) // <-- FIX: normaliza "14:30:00" → "14:30"
+    .map((c) => c.time.slice(0, 5))
 
   // ============================
   // Guardar cita
@@ -179,12 +190,12 @@ export default function CitasRecepcionista() {
         <h2 className="mb-3">📅 Agendamiento de Citas</h2>
 
         <Button
-        variant="primary"
-        className="mb-3"
-        onClick={() => navigate("/recepcionista/usuarios")}
-      >
-        ➕ Registrar Paciente
-      </Button>
+          variant="primary"
+          className="mb-3"
+          onClick={() => navigate("/recepcionista/usuarios")}
+        >
+          ➕ Registrar Paciente
+        </Button>
 
         {message && (
           <Alert variant={message.startsWith("✅") ? "success" : "danger"}>
@@ -203,7 +214,10 @@ export default function CitasRecepcionista() {
           />
 
           {filteredPatients.length > 0 && (
-            <div className="border rounded mt-1 bg-white" style={{ maxHeight: 180, overflowY: "auto" }}>
+            <div
+              className="border rounded mt-1 bg-white"
+              style={{ maxHeight: 180, overflowY: "auto" }}
+            >
               {filteredPatients.map((p) => (
                 <div
                   key={p.patient_id}
@@ -237,7 +251,6 @@ export default function CitasRecepcionista() {
 
         {/* FORMULARIO CITA */}
         <Form onSubmit={handleSubmit}>
-
           <Form.Select
             className="mb-2"
             value={selectedSpecialty ?? ""}
@@ -278,36 +291,59 @@ export default function CitasRecepcionista() {
           <Form.Control
             className="mb-2"
             type="date"
+            min={new Date().toISOString().split("T")[0]}   // 👈 evita días pasados
             value={form.date}
             onChange={(e) => setForm({ ...form, date: e.target.value })}
             required
           />
-
-          {/* SELECTOR DE HORAS CON CORRECCIÓN */}
+          {/* SELECTOR DE HORAS */}
           <Form.Select
-            className="mb-2"
-            name="time"
-            value={form.time}
-            onChange={(e) => setForm({ ...form, time: e.target.value })}
-            required
-          >
-            <option value="">Seleccionar hora...</option>
+              className="mb-2"
+              name="time"
+              value={form.time}
+              onChange={(e) => setForm({ ...form, time: e.target.value })}
+              required
+            >
+              <option value="">Seleccionar hora...</option>
 
-            {availableHours.map((h) => {
-              const ocupada = horasTomadas.includes(h)
+              {availableHours
+                .filter((h) => {
+                  if (!form.date) return true;
 
-              return (
-                <option
-                  key={h}
-                  value={ocupada ? "" : h}
-                  disabled={ocupada}
-                  style={{ color: ocupada ? "red" : "black" }}
-                >
-                  {ocupada ? `${h} — Ocupada` : h}
-                </option>
-              )
-            })}
-          </Form.Select>
+                  const todayStr = new Date().toISOString().split("T")[0]; 
+                  const selectedDateStr = form.date;
+
+                  // 📍 Si la fecha es futura → mostrar todas las horas
+                  if (selectedDateStr > todayStr) return true;
+
+                  // 📍 Si la fecha es pasada → no mostrar ninguna
+                  if (selectedDateStr < todayStr) return false;
+
+                  // 📍 Si la fecha es HOY → filtrar horas pasadas correctamente
+                  const now = new Date();
+                  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                  const [hour, minute] = h.split(":").map(Number);
+                  const slotMinutes = hour * 60 + minute;
+
+                  return slotMinutes > currentMinutes;
+                })
+                .map((h) => {
+                  const ocupada = horasTomadas.includes(h);
+
+                  return (
+                    <option
+                      key={h}
+                      value={ocupada ? "" : h}
+                      disabled={ocupada}
+                      style={{ color: ocupada ? "red" : "black" }}
+                    >
+                      {ocupada ? `${h} — Ocupada` : h}
+                    </option>
+                  );
+                })}
+            </Form.Select>
+
 
           {availabilityMessage && (
             <p className="text-danger">{availabilityMessage}</p>
@@ -327,10 +363,22 @@ export default function CitasRecepcionista() {
         </Form>
       </Card>
 
-      {/* TABLA DE CITAS */}
+      {/* ============================
+          TABLA DE CITAS + BÚSQUEDA
+      ============================ */}
       <Card className="shadow p-4 mt-4">
         <h4>🗂️ Citas Registradas</h4>
 
+        {/* 🔎 Barra de búsqueda */}
+        <Form.Control
+          type="text"
+          placeholder="Buscar cita por paciente, médico, motivo, fecha o estado..."
+          className="mt-3"
+          value={searchAppointment}
+          onChange={(e) => setSearchAppointment(e.target.value)}
+        />
+
+        {/* Tabla */}
         <Table bordered hover className="mt-3">
           <thead>
             <tr>
@@ -343,16 +391,24 @@ export default function CitasRecepcionista() {
             </tr>
           </thead>
           <tbody>
-            {appointments.map((a) => (
-              <tr key={a.appointment_id}>
-                <td>{new Date(a.date).toLocaleDateString('es-EC')}</td>
-                <td>{a.time.slice(0, 5)}</td>
-                <td>{a.patient_name}</td>
-                <td>{a.doctor_name}</td>
-                <td>{a.reason || "—"}</td>
-                <td>{a.status}</td>
+            {filteredAppointments.length > 0 ? (
+              filteredAppointments.map((a) => (
+                <tr key={a.appointment_id}>
+                  <td>{new Date(a.date).toLocaleDateString('es-EC')}</td>
+                  <td>{a.time.slice(0, 5)}</td>
+                  <td>{a.patient_name}</td>
+                  <td>{a.doctor_name}</td>
+                  <td>{a.reason || "—"}</td>
+                  <td>{a.status}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="text-center text-muted py-3">
+                  No se encontraron citas que coincidan con la búsqueda.
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </Table>
       </Card>
