@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { createEncounter, fetchDoctorIdByAuth } from '@/services/encounterService'
+import { Card, Button, Form, Alert, Spinner } from 'react-bootstrap'
 
 export default function NuevaHistoria() {
   const { patient_id } = useParams()
@@ -27,7 +28,7 @@ export default function NuevaHistoria() {
     loadDoctor()
   }, [user])
 
-  // 🩺 Campos de historia médica
+  // 🩺 Campos de historia médica (ORIGINAL)
   const [form, setForm] = useState({
     reason_for_consultation: '',
     main_symptoms: '',
@@ -40,7 +41,7 @@ export default function NuevaHistoria() {
     fecha_para_control: '',
   })
 
-  // ❤️ Signos vitales
+  // ❤️ Signos vitales (ORIGINAL)
   const [vitals, setVitals] = useState({
     presion_arterial: '',
     pulso_xmin: '',
@@ -100,106 +101,187 @@ export default function NuevaHistoria() {
   }
 
   return (
-    <div style={{ maxWidth: 800, margin: '2rem auto' }}>
-      <button
-        onClick={() => navigate(-1)}
-        style={{
-          marginBottom: '1rem',
-          background: 'transparent',
-          border: 'none',
-          color: '#007bff',
-          cursor: 'pointer',
-          fontSize: '1rem',
-        }}
-      >
-        ← Volver
-      </button>
+    <div className="container mt-4" style={{ maxWidth: 900 }}>
 
-      <h2>🩺 Nueva Historia Médica</h2>
+      {/* HEADER */}
+      <Button variant="link" onClick={() => navigate(-1)} className="mb-2">
+        ← Volver
+      </Button>
+
+      <h2 className="mb-1">🩺 Nueva Historia Clínica</h2>
+      <p className="text-muted mb-4">
+        Complete la información médica del paciente
+      </p>
 
       {loadingDoctor ? (
-        <p>Cargando perfil del médico...</p>
+        <div className="text-center text-muted my-4">
+          <Spinner animation="border" size="sm" className="me-2" />
+          Cargando perfil del médico...
+        </div>
       ) : !doctorId ? (
-        <p style={{ color: 'red' }}>❌ No se encontró el ID del médico.</p>
+        <Alert variant="danger">
+          ❌ No se encontró el ID del médico.
+        </Alert>
       ) : (
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
-            backgroundColor: '#f8f9fa',
-            padding: '1.5rem',
-            borderRadius: 10,
-            boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-          }}
-        >
-          <label>Motivo de consulta</label>
-          <textarea name="reason_for_consultation" value={form.reason_for_consultation} onChange={handleChange} required />
+        <Form onSubmit={handleSubmit}>
 
-          <label>Síntomas principales</label>
-          <textarea name="main_symptoms" value={form.main_symptoms} onChange={handleChange} required />
+          {/* ================= DATOS CLÍNICOS ================= */}
+          <Card className="shadow-sm p-4 mb-4">
+            <h5 className="mb-3">📋 Información clínica</h5>
 
-          <label>Síntomas secundarios</label>
-          <textarea name="secondary_symptoms" value={form.secondary_symptoms} onChange={handleChange} />
+            <Form.Group className="mb-3">
+              <Form.Label>Motivo de consulta</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                name="reason_for_consultation"
+                value={form.reason_for_consultation}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
 
-          <label>Revisión de órganos y sistemas</label>
-          <textarea name="revision_organos" value={form.revision_organos} onChange={handleChange} />
+            <Form.Group className="mb-3">
+              <Form.Label>Síntomas principales</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                name="main_symptoms"
+                value={form.main_symptoms}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
 
-          <label>Examen físico</label>
-          <textarea name="examen_fisico" value={form.examen_fisico} onChange={handleChange} />
+            <Form.Group className="mb-3">
+              <Form.Label>Síntomas secundarios</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                name="secondary_symptoms"
+                value={form.secondary_symptoms}
+                onChange={handleChange}
+              />
+            </Form.Group>
 
-          <label>Diagnóstico</label>
-          <textarea name="diagnostico" value={form.diagnostico} onChange={handleChange} />
+            <Form.Group className="mb-3">
+              <Form.Label>Revisión de órganos y sistemas</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                name="revision_organos"
+                value={form.revision_organos}
+                onChange={handleChange}
+              />
+            </Form.Group>
 
-          <label>Tratamiento</label>
-          <textarea name="treatment" value={form.treatment} onChange={handleChange} />
+            <Form.Group className="mb-3">
+              <Form.Label>Examen físico</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                name="examen_fisico"
+                value={form.examen_fisico}
+                onChange={handleChange}
+              />
+            </Form.Group>
 
-          <label>Observaciones</label>
-          <textarea name="observations" value={form.observations} onChange={handleChange} />
+            <Form.Group className="mb-3">
+              <Form.Label>Diagnóstico</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                name="diagnostico"
+                value={form.diagnostico}
+                onChange={handleChange}
+              />
+            </Form.Group>
 
-          <label>📅 Próxima fecha de control</label>
-          <input type="date" name="fecha_para_control" value={form.fecha_para_control} onChange={handleChange} />
+            <Form.Group className="mb-3">
+              <Form.Label>Tratamiento</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                name="treatment"
+                value={form.treatment}
+                onChange={handleChange}
+              />
+            </Form.Group>
 
-          <h3>❤️ Signos Vitales</h3>
+            <Form.Group className="mb-3">
+              <Form.Label>Observaciones</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                name="observations"
+                value={form.observations}
+                onChange={handleChange}
+              />
+            </Form.Group>
 
-          <label>Presión arterial (mmHg)</label>
-          <input name="presion_arterial" value={vitals.presion_arterial} onChange={handleVitalChange} />
+            <Form.Group>
+              <Form.Label>📅 Próxima fecha de control</Form.Label>
+              <Form.Control
+                type="date"
+                name="fecha_para_control"
+                value={form.fecha_para_control}
+                onChange={handleChange}
+              />
+            </Form.Group>
+          </Card>
 
-          <label>Pulso (x min)</label>
-          <input name="pulso_xmin" value={vitals.pulso_xmin} onChange={handleVitalChange} />
+          {/* ================= SIGNOS VITALES ================= */}
+          <Card className="shadow-sm p-4 mb-4">
+            <h5 className="mb-3">❤️ Signos vitales</h5>
 
-          <label>Temperatura (°C)</label>
-          <input name="temperatura" value={vitals.temperatura} onChange={handleVitalChange} />
+            <div className="row">
+              <div className="col-md-4 mb-3">
+                <Form.Label>Presión arterial (mmHg)</Form.Label>
+                <Form.Control
+                  name="presion_arterial"
+                  value={vitals.presion_arterial}
+                  onChange={handleVitalChange}
+                />
+              </div>
 
-          <button
+              <div className="col-md-4 mb-3">
+                <Form.Label>Pulso (x min)</Form.Label>
+                <Form.Control
+                  name="pulso_xmin"
+                  value={vitals.pulso_xmin}
+                  onChange={handleVitalChange}
+                />
+              </div>
+
+              <div className="col-md-4 mb-3">
+                <Form.Label>Temperatura (°C)</Form.Label>
+                <Form.Control
+                  name="temperatura"
+                  value={vitals.temperatura}
+                  onChange={handleVitalChange}
+                />
+              </div>
+            </div>
+          </Card>
+
+          <Button
             type="submit"
             disabled={loading}
-            style={{
-              backgroundColor: '#007bff',
-              color: 'white',
-              padding: '0.8rem',
-              border: 'none',
-              borderRadius: 6,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            size="lg"
+            className="w-100"
           >
-            {loading ? 'Guardando...' : 'Guardar Historia'}
-          </button>
-        </form>
+            {loading ? 'Guardando historia...' : '💾 Guardar Historia Clínica'}
+          </Button>
+        </Form>
       )}
 
       {message && (
-        <p
-          style={{
-            color: message.startsWith('✅') ? 'green' : 'red',
-            marginTop: '1rem',
-            textAlign: 'center',
-          }}
+        <Alert
+          className="mt-4 text-center"
+          variant={message.startsWith('✅') ? 'success' : 'danger'}
         >
           {message}
-        </p>
+        </Alert>
       )}
     </div>
   )

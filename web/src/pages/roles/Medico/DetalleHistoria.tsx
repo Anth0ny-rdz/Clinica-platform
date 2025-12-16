@@ -5,7 +5,7 @@ import { fetchExamOrdersByEncounter } from '@/services/examService'
 
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { Card, Table, Button } from 'react-bootstrap'
+import { Card, Table, Button, Alert, Spinner, Badge } from 'react-bootstrap'
 
 type ExamType = {
   name: string
@@ -36,12 +36,12 @@ export default function DetalleHistoria() {
 
   const pdfRef = useRef<HTMLDivElement>(null)
 
-  // 👇 Ocultar exámenes solo al exportar PDF
+  // 👇 Ocultar exámenes solo al exportar PDF (ORIGINAL)
   const [hideExams, setHideExams] = useState(false)
 
-  // ===========================
-  //   CARGAR HISTORIA + EXÁMENES
-  // ===========================
+  /* ===========================
+     CARGAR HISTORIA + EXÁMENES
+  =========================== */
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -63,195 +63,195 @@ export default function DetalleHistoria() {
     loadData()
   }, [encounter_id])
 
-  // ===========================
-  //   EXPORTAR PDF
-  // ===========================
+  /* ===========================
+     EXPORTAR PDF (ORIGINAL)
+  =========================== */
   const handleExportPDF = async () => {
     if (!pdfRef.current) return
 
-    // 1️⃣ Ocultar sección de exámenes
     setHideExams(true)
     await new Promise((resolve) => setTimeout(resolve, 150))
 
-    // 2️⃣ Capturar PDF
-    const input = pdfRef.current
-    const canvas = await html2canvas(input, { scale: 2 })
+    const canvas = await html2canvas(pdfRef.current, { scale: 2 })
     const imgData = canvas.toDataURL('image/png')
 
     const pdf = new jsPDF('p', 'mm', 'a4')
     const imgProps = pdf.getImageProperties(imgData)
     const pdfWidth = pdf.internal.pageSize.getWidth()
     const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
+
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
     pdf.save(`Historia_Medica_${encounter_id}.pdf`)
 
-    // 3️⃣ Mostrar la sección de exámenes de nuevo
     setHideExams(false)
   }
 
-  if (loading) return <p style={{ padding: '2rem' }}>Cargando historia médica...</p>
-  if (!encounter) return <p style={{ padding: '2rem' }}>{message || 'Historia no encontrada.'}</p>
+  /* ===========================
+     ESTADOS BASE
+  =========================== */
+  if (loading) {
+    return (
+      <div className="text-center my-5 text-muted">
+        <Spinner animation="border" className="me-2" />
+        Cargando historia médica...
+      </div>
+    )
+  }
+
+  if (!encounter) {
+    return (
+      <Alert variant="danger" className="m-4">
+        {message || 'Historia no encontrada.'}
+      </Alert>
+    )
+  }
 
   return (
-    <div style={{ maxWidth: 900, margin: '2rem auto' }}>
+    <div className="container mt-4" style={{ maxWidth: 1000 }}>
 
-      {/* BOTONES SUPERIORES */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <button onClick={() => navigate(-1)}>← Volver</button>
+      {/* ================= BOTONES SUPERIORES ================= */}
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <Button variant="link" onClick={() => navigate(-1)}>
+          ← Volver
+        </Button>
 
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
+        <div className="d-flex gap-2">
+          <Button
+            variant="success"
             onClick={() => navigate(`/medico/examenes/nuevo/${encounter_id}`)}
-            style={{
-              backgroundColor: '#28a745',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
           >
             ➕ Solicitar Examen
-          </button>
+          </Button>
 
-          <button
-            onClick={handleExportPDF}
-            style={{
-              backgroundColor: '#007bff',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
+          <Button variant="primary" onClick={handleExportPDF}>
             📄 Exportar PDF
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* CONTENIDO EXPORTABLE */}
-      <div
-        ref={pdfRef}
-        style={{
-          backgroundColor: 'white',
-          padding: '2rem',
-          borderRadius: '1rem',
-          boxShadow: '0 0 10px rgba(0,0,0,0.1)'
-        }}
-      >
-        <h2 style={{ textAlign: 'center' }}>Historia Médica</h2>
+      {/* ================= CONTENIDO EXPORTABLE ================= */}
+      <div ref={pdfRef}>
 
-        <p><strong>Fecha:</strong> {encounter.date}</p>
-        <p><strong>Hora:</strong> {encounter.hour || '—'}</p>
-        <p><strong>Médico tratante:</strong> {encounter.doctor_name || '—'}</p>
-        <p><strong>Especialidad:</strong> {encounter.especialidad || '—'}</p>
-        <p><strong>Subespecialidad:</strong> {encounter.subespecialidad || '—'}</p>
+        {/* ================= CABECERA ================= */}
+        <Card className="shadow p-4 mb-4">
+          <h2 className="text-center mb-3">Historia Clínica</h2>
 
-        <hr />
+          <div className="row">
+            <div className="col-md-6">
+              <p><strong>Fecha:</strong> {encounter.date}</p>
+              <p><strong>Hora:</strong> {encounter.hour || '—'}</p>
+              <p><strong>Médico tratante:</strong> {encounter.doctor_name || '—'}</p>
+            </div>
+            <div className="col-md-6">
+              <p><strong>Especialidad:</strong> {encounter.especialidad || '—'}</p>
+              <p><strong>Subespecialidad:</strong> {encounter.subespecialidad || '—'}</p>
+            </div>
+          </div>
+        </Card>
 
-        <h3>Motivo de Consulta</h3>
-        <p>{encounter.reason_for_consultation || '—'}</p>
+        {/* ================= SECCIONES CLÍNICAS ================= */}
+        <Card className="shadow p-4 mb-4">
+          <h5>🩺 Motivo de Consulta</h5>
+          <p>{encounter.reason_for_consultation || '—'}</p>
 
-        <h3>Síntomas Principales</h3>
-        <p>{encounter.main_symptoms || '—'}</p>
+          <h5>Síntomas Principales</h5>
+          <p>{encounter.main_symptoms || '—'}</p>
 
-        <h3>Síntomas Secundarios</h3>
-        <p>{encounter.secondary_symptoms || '—'}</p>
+          <h5>Síntomas Secundarios</h5>
+          <p>{encounter.secondary_symptoms || '—'}</p>
 
-        <h3>Revisión de Órganos y Sistemas</h3>
-        <p>{encounter.revision_organos || '—'}</p>
+          <h5>Revisión de Órganos y Sistemas</h5>
+          <p>{encounter.revision_organos || '—'}</p>
 
-        <h3>Examen Físico</h3>
-        <p>{encounter.examen_fisico || '—'}</p>
+          <h5>Examen Físico</h5>
+          <p>{encounter.examen_fisico || '—'}</p>
 
-        <h3>Diagnóstico</h3>
-        <p>{encounter.diagnostico || '—'}</p>
+          <h5>Diagnóstico</h5>
+          <p>{encounter.diagnostico || '—'}</p>
 
-        <h3>Tratamiento</h3>
-        <p>{encounter.treatment || '—'}</p>
+          <h5>Tratamiento</h5>
+          <p>{encounter.treatment || '—'}</p>
 
-        <h3>Observaciones</h3>
-        <p>{encounter.observations || '—'}</p>
+          <h5>Observaciones</h5>
+          <p>{encounter.observations || '—'}</p>
 
-        <h3>Próxima Fecha de Control</h3>
-        <p>{encounter.fecha_para_control || '—'}</p>
+          <h5>📅 Próxima Fecha de Control</h5>
+          <p>{encounter.fecha_para_control || '—'}</p>
+        </Card>
 
-        <hr />
+        {/* ================= SIGNOS VITALES ================= */}
+        <Card className="shadow p-4 mb-4">
+          <h5>❤️ Signos Vitales</h5>
 
-        <h3>Signos Vitales</h3>
-        {encounter.vitals ? (
-          <ul>
-            <li><strong>Presión arterial:</strong> {encounter.vitals.presion_arterial || '—'}</li>
-            <li><strong>Pulso:</strong> {encounter.vitals.pulso_xmin || '—'}</li>
-            <li><strong>Temperatura:</strong> 
-              {encounter.vitals.temperatura ? `${encounter.vitals.temperatura} °C` : '—'}
-            </li>
-          </ul>
-        ) : (
-          <p>No se registraron signos vitales.</p>
-        )}
+          {encounter.vitals ? (
+            <ul>
+              <li><strong>Presión arterial:</strong> {encounter.vitals.presion_arterial || '—'}</li>
+              <li><strong>Pulso:</strong> {encounter.vitals.pulso_xmin || '—'}</li>
+              <li>
+                <strong>Temperatura:</strong>{' '}
+                {encounter.vitals.temperatura
+                  ? `${encounter.vitals.temperatura} °C`
+                  : '—'}
+              </li>
+            </ul>
+          ) : (
+            <p>No se registraron signos vitales.</p>
+          )}
+        </Card>
 
-        {/* =========================== */}
-        {/*   SECCIÓN DE ORDENDES DE EXAMEN */}
-        {/* =========================== */}
-
+        {/* ================= ÓRDENES DE EXÁMENES ================= */}
         {!hideExams && (
-          <div>
-            <hr style={{ margin: '2rem 0' }} />
-            <h3>🧪 Órdenes de Exámenes Asociadas</h3>
+          <Card className="shadow p-4 mb-4">
+            <h5 className="mb-3">🧪 Órdenes de Exámenes Asociadas</h5>
 
             {examOrders.length === 0 ? (
-              <p className="text-muted">No existen órdenes de examen vinculadas a esta historia.</p>
+              <p className="text-muted">
+                No existen órdenes de examen vinculadas a esta historia.
+              </p>
             ) : (
-              <Card className="shadow p-3 mt-3">
-                <Table bordered hover>
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Fecha</th>
-                      <th>Prioridad</th>
-                      <th>Items</th>
-                      <th>Acción</th>
+              <Table bordered hover responsive>
+                <thead className="table-light">
+                  <tr>
+                    <th>ID</th>
+                    <th>Fecha</th>
+                    <th>Prioridad</th>
+                    <th>Exámenes</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {examOrders.map((order) => (
+                    <tr key={order.order_id}>
+                      <td>{order.order_id}</td>
+                      <td>{new Date(order.created_at).toLocaleDateString('es-EC')}</td>
+                      <td>
+                        <Badge bg={order.priority === "Alta" ? "danger" : "secondary"}>
+                          {order.priority}
+                        </Badge>
+                      </td>
+                      <td>
+                        {order.order_exam_items
+                          .map((item: ExamItem) => item.exam_type.name)
+                          .join(', ')}
+                      </td>
+                      <td>
+                        <Button
+                          size="sm"
+                          variant="outline-primary"
+                          onClick={() =>
+                            navigate(`/medico/examenes/orden/${order.order_id}`)
+                          }
+                        >
+                          Ver detalle
+                        </Button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {examOrders.map((order) => (
-                      <tr key={order.order_id}>
-                        <td>{order.order_id}</td>
-
-                        {/* Fecha formateada */}
-                        <td>{new Date(order.created_at).toLocaleDateString('es-EC')}</td>
-
-                        <td>{order.priority}</td>
-
-                        {/* LISTA DE EXÁMENES */}
-                        <td>
-                          {order.order_exam_items
-                            .map((item: ExamItem) => item.exam_type.name)
-                            .join(', ')}
-                        </td>
-
-                        <td>
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            onClick={() =>
-                              navigate(`/medico/examenes/orden/${order.order_id}`)
-                            }
-                          >
-                            Ver Detalle
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </Card>
+                  ))}
+                </tbody>
+              </Table>
             )}
-          </div>
+          </Card>
         )}
-
       </div>
     </div>
   )

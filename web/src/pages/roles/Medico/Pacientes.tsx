@@ -24,14 +24,14 @@ export default function Pacientes() {
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  // 🔹 Cargar todos los pacientes al montar
+  // 🔹 Cargar todos los pacientes al montar (ORIGINAL)
   useEffect(() => {
     const loadPatients = async () => {
       try {
         setLoading(true)
         const data = await fetchAllPatients()
         setPatients(data)
-        setFilteredPatients(data) // copia inicial
+        setFilteredPatients(data)
       } catch (err: any) {
         setError(err.message)
       } finally {
@@ -41,7 +41,7 @@ export default function Pacientes() {
     loadPatients()
   }, [])
 
-  // 🔍 BÚSQUEDA DINÁMICA POR CÉDULA
+  // 🔍 BÚSQUEDA DINÁMICA POR CÉDULA (ORIGINAL)
   useEffect(() => {
     if (!searchCedula.trim()) {
       setFilteredPatients(patients)
@@ -59,52 +59,72 @@ export default function Pacientes() {
     navigate(`/medico/pacientes/${doc_id}`)
   }
 
-  // 🔄 Reiniciar búsqueda
   const resetSearch = () => {
     setSearchCedula('')
     setFilteredPatients(patients)
   }
 
   return (
-    <div className="container mt-4" style={{ maxWidth: "1000px" }}>
+    <div className="container mt-4" style={{ maxWidth: "1100px" }}>
 
-      <h2 className="fw-bold text-center mb-4">Lista de Pacientes</h2>
-
-      {/* BUSQUEDA DINAMICA */}
-      <div className="row g-2 mb-3">
-        <div className="col-md-9">
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Buscar por cédula..."
-            value={searchCedula}
-            onChange={(e) => setSearchCedula(e.target.value)}
-          />
-        </div>
-
-        {searchCedula && (
-          <div className="col-md-3 d-grid">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={resetSearch}
-            >
-              Reiniciar
-            </button>
-          </div>
-        )}
+      {/* ================= HEADER ================= */}
+      <div className="text-center mb-4">
+        <h2 className="fw-bold mb-1">🧍 Lista de Pacientes</h2>
+        <p className="text-muted">
+          Seleccione un paciente para ver su información clínica
+        </p>
       </div>
 
-      {/* ALERTA DE ERROR */}
-      {error && <div className="alert alert-danger">{error}</div>}
+      {/* ================= BUSCADOR ================= */}
+      <div className="card shadow-sm p-3 mb-3">
+        <label className="form-label fw-semibold">
+          🔎 Buscar por número de cédula
+        </label>
 
-      {/* LOADING */}
-      {loading && <p className="text-center">Cargando pacientes...</p>}
+        <div className="row g-2">
+          <div className="col-md-9">
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Ej: 1723... (parcial o completo)"
+              value={searchCedula}
+              onChange={(e) => setSearchCedula(e.target.value)}
+            />
+          </div>
 
-      {/* TABLA DE PACIENTES */}
+          {searchCedula && (
+            <div className="col-md-3 d-grid">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={resetSearch}
+              >
+                ↺ Limpiar búsqueda
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ================= ERROR ================= */}
+      {error && (
+        <div className="alert alert-danger">
+          ❌ {error}
+        </div>
+      )}
+
+      {/* ================= LOADING ================= */}
+      {loading && (
+        <div className="text-center text-muted my-4">
+          <div className="spinner-border spinner-border-sm me-2" />
+          Cargando pacientes...
+        </div>
+      )}
+
+      {/* ================= TABLA ================= */}
       {!loading && filteredPatients.length > 0 && (
-        <div className="table-responsive shadow-sm">
-          <table className="table table-hover align-middle">
+        <div className="table-responsive shadow-sm rounded">
+          <table className="table table-hover align-middle mb-0">
             <thead className="table-primary">
               <tr>
                 <th>Cédula</th>
@@ -113,25 +133,25 @@ export default function Pacientes() {
                 <th>Teléfono</th>
                 <th>Dirección</th>
                 <th>Correo</th>
-                <th className="text-center">Acciones</th>
+                <th className="text-center">Acción</th>
               </tr>
             </thead>
 
             <tbody>
               {filteredPatients.map((p) => (
                 <tr key={p.patient_id}>
-                  <td>{p.doc_id}</td>
+                  <td className="fw-semibold">{p.doc_id}</td>
                   <td>{p.names}</td>
                   <td>{p.lastname}</td>
-                  <td>{p.telephone}</td>
-                  <td>{p.address}</td>
-                  <td>{p.email}</td>
+                  <td>{p.telephone || "—"}</td>
+                  <td>{p.address || "—"}</td>
+                  <td>{p.email || "—"}</td>
                   <td className="text-center">
                     <button
                       className="btn btn-sm btn-outline-primary"
                       onClick={() => handleViewDetails(p.doc_id)}
                     >
-                      Ver detalles
+                      👁️ Ver historia
                     </button>
                   </td>
                 </tr>
@@ -141,11 +161,11 @@ export default function Pacientes() {
         </div>
       )}
 
-      {/* SIN RESULTADOS */}
+      {/* ================= SIN RESULTADOS ================= */}
       {!loading && filteredPatients.length === 0 && !error && (
-        <p className="text-center text-muted mt-3">
+        <div className="text-center text-muted mt-4">
           No se encontraron pacientes con esa cédula.
-        </p>
+        </div>
       )}
     </div>
   )
