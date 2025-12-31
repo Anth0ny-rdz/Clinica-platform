@@ -2,10 +2,18 @@ from twilio.rest import Client
 import os
 import json
 from dotenv import load_dotenv
+from supabase import create_client
+from datetime import datetime
 
 load_dotenv()
 
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+WHATSAPP_NUMBER = "+18046043610"
 ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
@@ -47,3 +55,37 @@ def send_lab_result_whatsapp(patient_phone: str, variables: dict):
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
+    
+
+def enviar_consentimiento_simple(numero: str, pending_id: str) -> bool:
+    """
+    Envía consentimiento WhatsApp y lo vincula a un pending_id
+    """
+
+    if numero.startswith('0'):
+        numero = '+593' + numero[1:]
+    elif not numero.startswith('+'):
+        numero = '+593' + numero
+
+    try:
+        client = Client(ACCOUNT_SID, AUTH_TOKEN)
+
+        mensaje = client.messages.create(
+            from_=f'whatsapp:{WHATSAPP_NUMBER}',
+            to=f'whatsapp:{numero}',
+            content_sid="HX08aae0c7981edc0462fcde9b968de7df"
+        )
+
+        # Registrar envío
+        supabase.table("pending_users").update({
+            "whatsapp_sent": True,
+            "whatsapp_sent_at": datetime.utcnow().isoformat()
+        }).eq("id", pending_id).execute()
+
+        print(f"✅ Consentimiento enviado a {numero}")
+        print(f"   SID: {mensaje.sid}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error enviando WhatsApp a {numero}: {e}")
+        return False

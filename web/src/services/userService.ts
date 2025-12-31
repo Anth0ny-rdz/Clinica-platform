@@ -87,3 +87,21 @@ export async function fetchUserProfileId(auth_id: string) {
   }
   return await response.json()
 }
+
+
+export async function createUserRequest(data: NewPatientData) {
+  const res = await fetch(`${API_URL}/create_user_request`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || "Error enviando solicitud")
+  }
+
+  return res.json()
+}

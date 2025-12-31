@@ -9,6 +9,12 @@ import bcrypt
 from fastapi import Body
 from datetime import datetime, timedelta, date
 import json
+from services.user_create import crear_usuario_real
+from services.twilio_service import enviar_consentimiento_simple
+from utils.validaciones import validar_documento
+
+from routes.webhook_twilio import router as webhook_router
+
 
 from fastapi import HTTPException
 from datetime import datetime
@@ -16,6 +22,7 @@ import bcrypt
 import json
 
 from fastapi.responses import JSONResponse
+
 
 load_dotenv()
 
@@ -29,7 +36,10 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+
 app = FastAPI()
+app.include_router(webhook_router)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,118 +86,7 @@ class UserCreate(BaseModel):
 #1
 @app.post("/create_user")
 def create_user(user: UserCreate):
-    try:
-        if user.tipo_documento == "cedula":
-            if not validar_cedula_ecuador(user.id_number):
-                raise HTTPException(
-                    status_code=400,
-                    detail="❌ Cédula ecuatoriana no válida."
-                )
-
-        elif user.tipo_documento == "pasaporte":
-            import re
-            # Formato típico: 6 a 12 caracteres alfanuméricos
-            if not re.match(r"^[A-Za-z0-9]{6,12}$", user.id_number):
-                raise HTTPException(
-                    status_code=400,
-                    detail="❌ Pasaporte inválido. Debe tener 6–12 caracteres alfanuméricos."
-                )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="❌ Tipo de documento no reconocido."
-            )
-
-        #  Verificar duplicado
-        existente = supabase.table("user_profile").select("id_number").eq("id_number", user.id_number).execute()
-        if existente.data:
-            raise HTTPException(status_code=400, detail="⚠️ Esta cédula ya está registrada.")
-
-        # Crear usuario en Auth
-        auth_resp = supabase.auth.admin.create_user({
-            "email": user.email,
-            "password": user.password,
-            "email_confirm": True
-        })
-        auth_user = auth_resp.user
-        if not auth_user:
-            raise HTTPException(status_code=400, detail="Error creando usuario en Auth")
-
-        auth_id = auth_user.id
-
-        # Insertar en users
-        password_hash = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        user_data = {
-            "username": user.email.split("@")[0],
-            "email": user.email,
-            "password_hash": password_hash,
-            "is_active": True,
-            "is_staff": False,
-            "is_superuser": False,
-        }
-        user_insert = supabase.table("users").insert(user_data).execute()
-        user_id = user_insert.data[0]["userid"] if user_insert.data else None
-
-        # Insertar en user_profile
-        profile_data = {
-            "auth_id": auth_id,
-            "user_id": user_id,
-            "rol_id": user.rol_id,
-            "id_number": user.id_number,
-            "name": user.name,
-            "lastname": user.lastname,
-            "telephone": user.telephone,
-            "address": user.address,
-            "birth_date": user.birth_date,
-            "tipo_documento": user.tipo_documento,
-            # ⬇️ AGREGADO: consentimiento automático
-            "consentimiento_datos": True,
-            "consentimiento_fecha": datetime.utcnow().isoformat()
-        }
-
-        profile_insert = supabase.table("user_profile").insert(profile_data).execute()
-
-        # Si es paciente, insertar en patients
-        if user.rol_id == 6:  # Paciente
-            patient_data = {
-                "doc_id": user.id_number,
-                "names": user.name,
-                "lastname": user.lastname,
-                "birth_date": user.birth_date,
-                "address": user.address,
-                "telephone": user.telephone,
-                "email": user.email,
-                "seguro_medico": user.seguro_medico,
-                "entry_date": None,
-                "entry_hour": None,
-                "discharge_date": None,
-                "discharge_hour": None,
-                "personal_history": None,
-                "family_history": None,
-                "allergy": None,
-                "common_medicines": None,
-                "blood_type": None,
-                "parroquia": None,
-                "ciudad": None,
-                "provincia": None,
-                "genre": user.genre,
-                "doc_id": user.id_number,
-                "tipo_documento": user.tipo_documento,
-            }
-            supabase.table("patients").insert(patient_data).execute()
-
-        return {
-            "message": "✅ Usuario y paciente creados correctamente",
-            "auth_id": auth_id,
-            "user_id": user_id
-        }
-
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        print("❌ Error:", str(e))
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
-
+    return crear_usuario_real(user.dict())
 
 #2   
 @app.get("/patients")
@@ -3001,4 +2900,51 @@ def ai_analyze_draft(data: dict):
     return {
         "draft_analysis": recommendation,
         "similar_cases_found": len(similar_cases)
+    }
+
+
+#Espera a twilio para creacion
+from utils.phone import normalizar_telefono_ec
+from utils.validaciones import validar_documento
+
+@app.post("/create_user_request")
+def create_user_request(user: UserCreate):
+    print("📦 SUPABASE URL (create_user_request):", SUPABASE_URL)
+
+    # 1️⃣ VALIDACIÓN PREVIA
+    validar_documento(user.tipo_documento, user.id_number)
+
+    # 2️⃣ NORMALIZAR TELÉFONO
+    telefono = normalizar_telefono_ec(user.telephone)
+
+    # 3️⃣ EXPIRAR PENDINGS ANTERIORES (CLAVE)
+    supabase.table("pending_users").update({
+        "status": "expired"
+    }).eq("phone", telefono).eq("status", "pending").execute()
+
+    # 4️⃣ CREAR NUEVO PENDING
+    pending = supabase.table("pending_users").insert({
+        "phone": telefono,
+        "payload": user.dict(),
+        "status": "pending",
+        "consentimiento_tipo": "digital"
+    }).execute()
+
+    pending_id = pending.data[0]["id"]
+
+    # 5️⃣ ENVIAR WHATSAPP
+    enviado = enviar_consentimiento_simple(
+        numero=telefono,
+        pending_id=pending_id
+    )
+
+    if not enviado:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo enviar WhatsApp"
+        )
+
+    return {
+        "message": "Solicitud enviada. Esperando aceptación del paciente.",
+        "pending_id": pending_id
     }

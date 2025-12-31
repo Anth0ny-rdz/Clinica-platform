@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { fetchRoles, createPatient, type Role, type NewPatientData } from '@/services/userService'
+import { fetchRoles, createPatient, type Role, type NewPatientData, createUserRequest } from '@/services/userService'
 import { useAuth } from '@/context/AuthContext'
 
 export default function Usuarios() {
@@ -146,8 +146,10 @@ export default function Usuarios() {
         seguro_medico: tieneSeguro ? form.seguro_medico : "Ninguno",
       }
 
-      const result = await createPatient(dataToSend)
-      setMessage(`✅ Usuario creado correctamente (Auth ID: ${result.auth_id})`)
+      const result = await createUserRequest(dataToSend)
+      if (result.auth_id) {
+        setMessage(`✅ Usuario creado correctamente (Auth ID: ${result.auth_id})`)
+      }
 
       // Reset
       setForm({
