@@ -19,6 +19,12 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
+from ai.embedding import build_embedding_text, create_embedding, now_iso
+from ai.rag import call_agent
+
+def empty_to_none(value):
+    return value if value not in ("", None) else None
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -273,23 +279,54 @@ def create_encounter(data: dict):
 
         encounter_id = result_encounter.data[0]["encounter_id"]
 
+        # 🧠 Generar embedding automáticamente (NO recomendación IA)
+        embedding_text = build_embedding_text(encounter_data)
+
+        if len(embedding_text) >= 30:
+            try:
+                embedding = create_embedding(embedding_text)
+
+                supabase.table("encounters").update({
+                    "embedding": embedding,
+                    "embedding_text": embedding_text,
+                    "embedding_model": os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
+                    "embedded_at": now_iso()
+                }).eq("encounter_id", encounter_id).execute()
+
+            except Exception as e:
+                # ⚠️ IMPORTANTE: el embedding NO debe romper el guardado del encounter
+                print("⚠️ Error generando embedding (se continúa sin IA):", str(e))
+
+
+
         # 🩺 Signos vitales (si vienen)
         vitals_data = data.get("vitals")
+
         if vitals_data:
-            vital_record = {
-                "encounter_id": encounter_id,
-                "fecha": datetime.now().date().isoformat(),
-                "presion_arterial": vitals_data.get("presion_arterial"),
-                "pulso_xmin": vitals_data.get("pulso_xmin"),
-                "temperatura": vitals_data.get("temperatura"),
-            }
-            result_vital = supabase.table("signus_vitalis").insert(vital_record).execute()
+            presion = empty_to_none(vitals_data.get("presion_arterial"))
+            pulso = empty_to_none(vitals_data.get("pulso_xmin"))
+            temp = empty_to_none(vitals_data.get("temperatura"))
 
-            if result_vital.data:
-                vital_sign_id = result_vital.data[0]["vital_sign_id"]
-                supabase.table("encounters").update({"vital_sign_id": vital_sign_id}).eq("encounter_id", encounter_id).execute()
+            # 🧠 Insertar SOLO si al menos uno tiene valor
+            if presion is not None or pulso is not None or temp is not None:
+                vital_record = {
+                    "encounter_id": encounter_id,
+                    "fecha": datetime.now().date().isoformat(),
+                    "presion_arterial": presion,
+                    "pulso_xmin": pulso,
+                    "temperatura": temp,
+                }
 
-        return {"message": "✅ Historia y signos vitales creados correctamente", "encounter_id": encounter_id}
+                result_vital = supabase.table("signus_vitalis").insert(vital_record).execute()
+
+                if result_vital.data:
+                    vital_sign_id = result_vital.data[0]["vital_sign_id"]
+                    supabase.table("encounters").update(
+                        {"vital_sign_id": vital_sign_id}
+                    ).eq("encounter_id", encounter_id).execute()
+
+
+                return {"message": "✅ Historia y signos vitales creados correctamente", "encounter_id": encounter_id}
 
     except Exception as e:
         print("❌ Error creando historia médica:", str(e))
@@ -2870,3 +2907,98 @@ def get_pending_filtered(
     except Exception as e:
         print("❌ Error:", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+#Endpoint IA
+@app.post("/ai/suggest/{encounter_id}")
+def ai_suggest(encounter_id: int):
+    encounter = supabase.table("encounters").select("*") \
+        .eq("encounter_id", encounter_id).single().execute().data
+
+    if not encounter:
+        raise HTTPException(404, "Encounter no encontrado")
+
+    if not encounter.get("embedding"):
+        raise HTTPException(400, "Encounter sin embedding")
+
+    matches = supabase.rpc("match_encounters", {
+        "query_embedding": encounter["embedding"],
+        "match_count": 5,
+        "min_similarity": 0.35
+    }).execute().data
+
+    similar_ids = [m["encounter_id"] for m in matches]
+    similar_cases = supabase.table("encounters").select(
+        "encounter_id, diagnostico, treatment, observations"
+    ).in_("encounter_id", similar_ids).execute().data
+
+    payload = {
+        "current_case": encounter["embedding_text"],
+        "similar_cases": similar_cases
+    }
+
+    recommendation = call_agent(payload)
+
+    return {"recommendation": recommendation}
+
+
+#endpoint para ayuda durante la creacion
+@app.post("/ai/analyze-draft")
+def ai_analyze_draft(data: dict):
+    """
+    Analiza un borrador de historia clínica (NO persistido)
+    para apoyar al médico durante la redacción.
+    """
+
+    # 1️⃣ Construir texto clínico del borrador
+    draft_text_parts = [
+        f"Motivo de consulta: {data.get('reason_for_consultation','')}",
+        f"Síntomas principales: {data.get('main_symptoms','')}",
+        f"Síntomas secundarios: {data.get('secondary_symptoms','')}",
+        f"Revisión de órganos: {data.get('revision_organos','')}",
+        f"Examen físico: {data.get('examen_fisico','')}",
+        f"Diagnóstico preliminar: {data.get('diagnostico','')}",
+    ]
+
+    draft_text = "\n".join([p for p in draft_text_parts if p.strip()])
+
+    if len(draft_text) < 30:
+        raise HTTPException(
+            status_code=400,
+            detail="Información clínica insuficiente para análisis IA"
+        )
+
+    # 2️⃣ Crear embedding del borrador
+    draft_embedding = create_embedding(draft_text)
+
+    # 3️⃣ Buscar casos similares históricos
+    matches = supabase.rpc("match_encounters", {
+        "query_embedding": draft_embedding,
+        "match_count": 5,
+        "min_similarity": 0.35
+    }).execute().data or []
+
+    similar_cases = []
+    if matches:
+        ids = [m["encounter_id"] for m in matches]
+        rows = supabase.table("encounters").select(
+            "encounter_id, diagnostico, treatment, observations"
+        ).in_("encounter_id", ids).execute().data or []
+
+        sim_map = {m["encounter_id"]: m["similarity"] for m in matches}
+        for r in rows:
+            r["similarity"] = sim_map.get(r["encounter_id"])
+            similar_cases.append(r)
+
+    # 4️⃣ Construir payload para el agente IA
+    payload = {
+        "current_case": draft_text,
+        "similar_cases": similar_cases
+    }
+
+    # 5️⃣ Llamar al agente (Structured Outputs)
+    recommendation = call_agent(payload)
+
+    return {
+        "draft_analysis": recommendation,
+        "similar_cases_found": len(similar_cases)
+    }

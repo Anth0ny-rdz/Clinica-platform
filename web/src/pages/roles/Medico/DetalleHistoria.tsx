@@ -2,6 +2,10 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fetchEncounterDetail } from '@/services/encounterService'
 import { fetchExamOrdersByEncounter } from '@/services/examService'
+import { fetchAISuggestion } from '@/services/encounterService'
+
+import AIApoyoClinicoCards from '@/components/AIApoyoClinicoCards'
+
 
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -33,6 +37,12 @@ export default function DetalleHistoria() {
   const [examOrders, setExamOrders] = useState<ExamOrder[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiResult, setAiResult] = useState<any>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
+
+
 
   const pdfRef = useRef<HTMLDivElement>(null)
 
@@ -87,6 +97,27 @@ export default function DetalleHistoria() {
   }
 
   /* ===========================
+   APOYO CLÍNICO IA (BAJO DEMANDA)
+=========================== */
+  const handleAISupport = async () => {
+    try {
+      setAiLoading(true)
+      setAiError(null)
+      setAiResult(null)
+
+      const data = await fetchAISuggestion(Number(encounter_id))
+      setAiResult(data.recommendation)
+
+    } catch (err: any) {
+      setAiError(err.message || 'Error generando apoyo clínico IA')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+
+
+  /* ===========================
      ESTADOS BASE
   =========================== */
   if (loading) {
@@ -126,6 +157,15 @@ export default function DetalleHistoria() {
           <Button variant="primary" onClick={handleExportPDF}>
             📄 Exportar PDF
           </Button>
+
+          <Button
+            variant="outline-primary"
+            onClick={handleAISupport}
+            disabled={aiLoading}
+          >
+            {aiLoading ? 'Analizando...' : '🧠 Apoyo clínico IA'}
+          </Button>
+
         </div>
       </div>
 
@@ -198,6 +238,18 @@ export default function DetalleHistoria() {
             <p>No se registraron signos vitales.</p>
           )}
         </Card>
+
+          {/* ================= APOYO CLÍNICO IA ================= */}
+          {aiError && (
+            <Alert variant="danger" className="mt-3">
+              {aiError}
+            </Alert>
+          )}
+
+          {aiResult && (<AIApoyoClinicoCards data={aiResult} />)}
+
+
+
 
         {/* ================= ÓRDENES DE EXÁMENES ================= */}
         {!hideExams && (

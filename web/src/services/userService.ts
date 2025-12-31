@@ -16,6 +16,7 @@ export interface NewUserData {
   address: string
   birth_date: string
   rol_id: number
+  tipo_documento: "cedula" | "pasaporte"
 }
 
 export interface NewPatientData extends NewUserData {

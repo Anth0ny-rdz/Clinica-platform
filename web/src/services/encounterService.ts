@@ -47,3 +47,9 @@ export async function fetchEncountersByPatientBrief(patient_id: number) {
 
   return await res.json();
 }
+
+export async function fetchAISuggestion(encounter_id: number) {
+  const res = await fetch(`${API_URL}/ai/suggest/${encounter_id}`, { method: "POST" })
+  if (!res.ok) throw new Error("Error IA")
+  return res.json()
+}

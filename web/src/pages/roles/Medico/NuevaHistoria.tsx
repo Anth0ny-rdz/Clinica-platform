@@ -3,11 +3,45 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { createEncounter, fetchDoctorIdByAuth } from '@/services/encounterService'
 import { Card, Button, Form, Alert, Spinner } from 'react-bootstrap'
+import { analyzeDraftWithAI } from '@/services/aiService'
+
+import AIApoyoClinicoCards from '@/components/AIApoyoClinicoCards'
 
 export default function NuevaHistoria() {
+  const handleAnalyzeDraft = async () => {
+  try {
+    setAiLoading(true)
+    setAiError(null)
+
+    const payload = {
+      reason_for_consultation: form.reason_for_consultation,
+      main_symptoms: form.main_symptoms,
+      secondary_symptoms: form.secondary_symptoms,
+      revision_organos: form.revision_organos,
+      examen_fisico: form.examen_fisico,
+      diagnostico: form.diagnostico,
+    }
+
+    const result = await analyzeDraftWithAI(payload)
+    setAiDraftResult(result.draft_analysis)
+
+  } catch (e: any) {
+    setAiError(e.message)
+  } finally {
+    setAiLoading(false)
+  }
+}
+
   const { patient_id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiDraftResult, setAiDraftResult] = useState<any>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [aiInvalidated, setAiInvalidated] = useState(false)
+
+
 
   const [doctorId, setDoctorId] = useState<number | null>(null)
   const [loadingDoctor, setLoadingDoctor] = useState(true)
@@ -54,6 +88,11 @@ export default function NuevaHistoria() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
+
+    if (aiDraftResult) {
+      setAiDraftResult(null)
+      setAiInvalidated(true)
+    }
   }
 
   const handleVitalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,6 +120,10 @@ export default function NuevaHistoria() {
       await createEncounter(dataToSend)
       setMessage('✅ Historia médica y signos vitales registrados correctamente.')
 
+      // 🧠 LIMPIAR APOYO IA TRAS GUARDAR
+      setAiDraftResult(null)
+      setAiInvalidated(false)
+
       setForm({
         reason_for_consultation: '',
         main_symptoms: '',
@@ -93,6 +136,7 @@ export default function NuevaHistoria() {
         fecha_para_control: '',
       })
       setVitals({ presion_arterial: '', pulso_xmin: '', temperatura: '' })
+      
     } catch (err: any) {
       setMessage('❌ Error al guardar historia: ' + err.message)
     } finally {
@@ -263,6 +307,39 @@ export default function NuevaHistoria() {
               </div>
             </div>
           </Card>
+
+          <Button
+            variant="outline-info"
+            onClick={handleAnalyzeDraft}
+            disabled={aiLoading}
+          >
+            {aiLoading ? 'Analizando...' : '🧠 Analizar borrador (IA)'}
+          </Button>
+
+            {/* ================= RESULTADO IA BORRADOR ================= */}
+
+              {aiError && (
+                <Alert variant="danger" className="mt-3">
+                  {aiError}
+                </Alert>
+              )}
+
+              {aiDraftResult && (
+                <div className="mt-4">
+                  <AIApoyoClinicoCards data={aiDraftResult} />
+                </div>
+              )}
+
+              {/* ================= MENSAJE IA INVALIDADA ================= */}
+              {aiInvalidated && !aiDraftResult && (
+                <Alert variant="secondary" className="mt-3">
+                  ℹ️ El análisis de apoyo clínico fue invalidado debido a cambios en la información ingresada.
+                  <br />
+                  Presione nuevamente <strong>“Analizar borrador (IA)”</strong> para obtener nuevas sugerencias.
+                </Alert>
+              )}
+
+
 
           <Button
             type="submit"
