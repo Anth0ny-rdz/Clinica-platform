@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { fetchRoles, createPatient, type Role, type NewPatientData, createUserRequest } from '@/services/userService'
+import { fetchRoles, createPatient, type Role, type NewPatientData, createUserRequest, getPendingStatus } from '@/services/userService'
 import { useAuth } from '@/context/AuthContext'
 
 export default function Usuarios() {
@@ -37,6 +37,12 @@ export default function Usuarios() {
   const [showModal, setShowModal] = useState(false)
   const handleSubmitRef = useRef<(() => Promise<void>) | null>(null)
 
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [showPendingModal, setShowPendingModal] = useState(false)
+  const [modalState, setModalState] = useState<
+    "pending" | "accepted" | "rejected"
+  >("pending")
+
   // Cargar roles
   useEffect(() => {
     const loadRoles = async () => {
@@ -48,6 +54,32 @@ export default function Usuarios() {
     }
     loadRoles()
   }, [])
+
+    useEffect(() => {
+    if (!pendingId) return
+
+    const interval = setInterval(async () => {
+      try {
+        const data = await getPendingStatus(pendingId)
+
+        if (data.status === "accepted") {
+          setModalState("accepted")
+          clearInterval(interval)
+          setPendingId(null)
+        }
+
+        if (data.status === "rejected") {
+          setModalState("rejected")
+          clearInterval(interval)
+          setPendingId(null)
+        }
+      } catch (e) {
+        console.error("Error consultando estado", e)
+      }
+    }, 4000) // cada 4 segundos
+
+    return () => clearInterval(interval)
+  }, [pendingId])
 
   // Si no es admin, asignar rol Paciente automáticamente
   useEffect(() => {
@@ -147,9 +179,13 @@ export default function Usuarios() {
       }
 
       const result = await createUserRequest(dataToSend)
-      if (result.auth_id) {
-        setMessage(`✅ Usuario creado correctamente (Auth ID: ${result.auth_id})`)
-      }
+
+        // guardar ID pendiente
+        setPendingId(result.pending_id)
+
+        // abrir popup
+        setModalState("pending")
+        setShowPendingModal(true)
 
       // Reset
       setForm({
@@ -484,6 +520,55 @@ export default function Usuarios() {
           </div>
         </div>
       )}
-    </div>
+      {/* MODAL ESPERANDO / RESULTADO CONSENTIMIENTO */}
+      {showPendingModal && (
+        <div
+          className="modal fade show"
+          style={{ display: "block", background: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+
+              <div className="modal-body text-center">
+
+                {modalState === "pending" && (
+                  <>
+                    <div className="spinner-border text-primary" role="status" />
+                    <p className="mt-3">
+                      ⏳ Esperando respuesta del paciente por WhatsApp…
+                    </p>
+                  </>
+                )}
+
+                {modalState === "accepted" && (
+                  <div className="alert alert-success">
+                    ✅ El paciente aceptó el consentimiento.
+                  </div>
+                )}
+
+                {modalState === "rejected" && (
+                  <div className="alert alert-danger">
+                    ❌ El paciente rechazó el consentimiento.
+                  </div>
+                )}
+
+              </div>
+
+              {modalState !== "pending" && (
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setShowPendingModal(false)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
   )
 }

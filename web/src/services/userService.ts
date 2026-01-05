@@ -105,3 +105,14 @@ export async function createUserRequest(data: NewPatientData) {
 
   return res.json()
 }
+
+
+export async function getPendingStatus(pendingId: string) {
+  const res = await fetch(`${API_URL}/pending_status/${pendingId}`)
+
+  if (!res.ok) {
+    throw new Error("Error consultando estado del consentimiento")
+  }
+
+  return res.json() as Promise<{ status: "pending" | "accepted" | "rejected" }>
+}

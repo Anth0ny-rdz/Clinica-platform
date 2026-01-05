@@ -2948,3 +2948,13 @@ def create_user_request(user: UserCreate):
         "message": "Solicitud enviada. Esperando aceptación del paciente.",
         "pending_id": pending_id
     }
+
+@app.get("/pending_status/{pending_id}")
+def get_pending_status(pending_id: str):
+    res = supabase.table("pending_users") \
+        .select("status") \
+        .eq("id", pending_id) \
+        .single() \
+        .execute()
+
+    return {"status": res.data["status"]}
