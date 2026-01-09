@@ -114,5 +114,5 @@ export async function getPendingStatus(pendingId: string) {
     throw new Error("Error consultando estado del consentimiento")
   }
 
-  return res.json() as Promise<{ status: "pending" | "accepted" | "rejected" }>
+  return res.json() as Promise<{ status: "pending" | "accepted" | "rejected" | "expired" }>
 }

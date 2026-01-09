@@ -34,13 +34,12 @@ export default function Usuarios() {
   const puedeAsignarRol = user?.rol === "Administrador"
 
   // Modal
-  const [showModal, setShowModal] = useState(false)
   const handleSubmitRef = useRef<(() => Promise<void>) | null>(null)
 
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [showPendingModal, setShowPendingModal] = useState(false)
   const [modalState, setModalState] = useState<
-    "pending" | "accepted" | "rejected"
+    "pending" | "accepted" | "rejected" | "expired"
   >("pending")
 
   // Cargar roles
@@ -70,6 +69,12 @@ export default function Usuarios() {
 
         if (data.status === "rejected") {
           setModalState("rejected")
+          clearInterval(interval)
+          setPendingId(null)
+        }
+
+        if (data.status === "expired") {
+          setModalState("expired")
           clearInterval(interval)
           setPendingId(null)
         }
@@ -204,9 +209,15 @@ export default function Usuarios() {
       })
       setTieneSeguro(false)
       setTipoDocumento("cedula")
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
-      setMessage("❌ Error al crear usuario.")
+
+      const backendMessage =
+        error?.response?.data?.detail ||
+        error?.message ||
+        "❌ Error al crear usuario."
+
+      setMessage(backendMessage)
     } finally {
       setLoading(false)
     }
@@ -218,16 +229,6 @@ export default function Usuarios() {
     await handleSubmit(fake)
   }
 
-  // Submit falso → abre modal
-  const handlePreSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setShowModal(true)
-  }
-
-  const aceptarYEnviar = async () => {
-    setShowModal(false)
-    await handleSubmitRef.current?.()
-  }
 
   return (
     <div
@@ -259,7 +260,7 @@ export default function Usuarios() {
       )}
 
       {/* FORMULARIO */}
-      <form onSubmit={handlePreSubmit} className="row g-3">
+      <form onSubmit={handleSubmit} className="row g-3">
 
         {/* TIPO DE DOCUMENTO */}
         <div className="col-md-6">
@@ -462,64 +463,6 @@ export default function Usuarios() {
         </div>
       </form>
 
-      {/* MODAL */}
-      {showModal && (
-        <div
-          className="modal fade show"
-          style={{ display: "block", background: "rgba(0,0,0,0.5)" }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-
-              <div className="modal-header">
-                <h5 className="modal-title">Ley de Protección de Datos</h5>
-                <button className="btn-close" onClick={() => setShowModal(false)} />
-              </div>
-
-              <div className="modal-body" style={{ maxHeight: "350px", overflowY: "auto" }}>
-                <p>
-                  De conformidad con la <strong>Ley Orgánica de Protección de Datos Personales del Ecuador</strong>,
-                  Clínica Latacunga informa que los datos personales proporcionados serán tratados bajo estrictos
-                  principios de confidencialidad, seguridad y finalidad legítima.
-                </p>
-                <p>La información ingresada será utilizada exclusivamente para:</p>
-                <ul>
-                  <li>Registrar su perfil como paciente dentro del sistema clínico.</li>
-                  <li>Gestionar citas médicas, órdenes de exámenes y resultados.</li>
-                  <li>Actualizar su historial clínico.</li>
-                  <li>Verificar identidad y asegurar la correcta prestación del servicio médico.</li>
-                </ul>
-                <p>Sus datos personales no serán compartidos con terceros, excepto cuando exista:</p>
-                <ul>
-                  <li>Autorización expresa.</li>
-                  <li>Una obligación legal aplicable.</li>
-                  <li>Procesos internos necesarios para la prestación del servicio.</li>
-                </ul>
-                <p>
-                  Al continuar, usted declara que acepta el tratamiento de sus datos personales para los fines
-                  descritos.
-                </p>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setShowModal(false)
-                    setMessage("❌ Registro cancelado: debe aceptar la Ley de Protección de Datos Personales.")
-                  }}
-                >
-                  Cancelar
-                </button>
-
-                <button className="btn btn-primary" onClick={aceptarYEnviar}>
-                  Acepto
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* MODAL ESPERANDO / RESULTADO CONSENTIMIENTO */}
       {showPendingModal && (
         <div
@@ -549,6 +492,12 @@ export default function Usuarios() {
                 {modalState === "rejected" && (
                   <div className="alert alert-danger">
                     ❌ El paciente rechazó el consentimiento.
+                  </div>
+                )}
+
+                {modalState === "expired" && (
+                  <div className="alert alert-warning">
+                    ⏰ El tiempo de espera expiró. No se recibió consentimiento.
                   </div>
                 )}
 

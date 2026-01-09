@@ -12,12 +12,13 @@ import json
 from services.user_create import crear_usuario_real
 from services.twilio_service import enviar_consentimiento_simple
 from utils.validaciones import validar_documento
+from utils.phone import normalizar_telefono_ec
 
 from routes.webhook_twilio import router as webhook_router
 
 
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, timezone
 import bcrypt
 import json
 
@@ -2902,37 +2903,60 @@ def ai_analyze_draft(data: dict):
         "similar_cases_found": len(similar_cases)
     }
 
-
-#Espera a twilio para creacion
-from utils.phone import normalizar_telefono_ec
-from utils.validaciones import validar_documento
-
 @app.post("/create_user_request")
 def create_user_request(user: UserCreate):
     print("📦 SUPABASE URL (create_user_request):", SUPABASE_URL)
 
-    # 1️⃣ VALIDACIÓN PREVIA
+    # 1️⃣ VALIDACIÓN PREVIA DE DOCUMENTO (YA EXISTENTE)
     validar_documento(user.tipo_documento, user.id_number)
 
-    # 2️⃣ NORMALIZAR TELÉFONO
+    # 2️⃣ VALIDAR DUPLICADOS (🔴 NUEVO - CRÍTICO)
+    # 2.1 Cédula / pasaporte duplicado
+    doc_existente = supabase.table("user_profile") \
+        .select("user_profile_id") \
+        .eq("id_number", user.id_number) \
+        .execute()
+
+    if doc_existente.data:
+        raise HTTPException(
+            status_code=400,
+            detail="⚠️ El documento ya se encuentra registrado."
+        )
+
+    # 2.2 Correo duplicado
+    email_existente = supabase.table("users") \
+        .select("userid") \
+        .eq("email", user.email) \
+        .execute()
+
+    if email_existente.data:
+        raise HTTPException(
+            status_code=400,
+            detail="⚠️ El correo electrónico ya se encuentra registrado."
+        )
+
+    # 3️⃣ NORMALIZAR TELÉFONO (YA EXISTENTE)
     telefono = normalizar_telefono_ec(user.telephone)
 
-    # 3️⃣ EXPIRAR PENDINGS ANTERIORES (CLAVE)
+    # 4️⃣ EXPIRAR PENDINGS ANTERIORES (YA EXISTENTE - CORRECTO)
     supabase.table("pending_users").update({
         "status": "expired"
     }).eq("phone", telefono).eq("status", "pending").execute()
 
-    # 4️⃣ CREAR NUEVO PENDING
+    expires_at = datetime.utcnow() + timedelta(minutes=3)
+
+    # 5️⃣ CREAR NUEVO PENDING (YA EXISTENTE)
     pending = supabase.table("pending_users").insert({
         "phone": telefono,
         "payload": user.dict(),
         "status": "pending",
-        "consentimiento_tipo": "digital"
+        "consentimiento_tipo": "digital",
+        "expires_at": expires_at.isoformat()
     }).execute()
 
     pending_id = pending.data[0]["id"]
 
-    # 5️⃣ ENVIAR WHATSAPP
+    # 6️⃣ ENVIAR WHATSAPP (YA EXISTENTE)
     enviado = enviar_consentimiento_simple(
         numero=telefono,
         pending_id=pending_id
@@ -2949,12 +2973,32 @@ def create_user_request(user: UserCreate):
         "pending_id": pending_id
     }
 
+
 @app.get("/pending_status/{pending_id}")
 def get_pending_status(pending_id: str):
     res = supabase.table("pending_users") \
-        .select("status") \
+        .select("status, expires_at") \
         .eq("id", pending_id) \
         .single() \
         .execute()
 
-    return {"status": res.data["status"]}
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+    status = res.data["status"]
+    expires_at = res.data["expires_at"]
+
+    # ⏱️ VERIFICAR EXPIRACIÓN
+    if status == "pending" and expires_at:
+        ahora = datetime.now(timezone.utc)
+        expira = datetime.fromisoformat(expires_at)
+
+        if ahora > expira:
+            # marcar como expirado
+            supabase.table("pending_users").update({
+                "status": "expired"
+            }).eq("id", pending_id).execute()
+
+            return {"status": "expired"}
+
+    return {"status": status}

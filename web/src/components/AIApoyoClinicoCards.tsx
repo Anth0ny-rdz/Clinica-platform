@@ -18,13 +18,15 @@ export default function AIApoyoClinicoCards({ data }: Props) {
       {/* Nivel de confianza */}
       <p>
         <strong>Confianza:</strong>{' '}
-        <Badge bg={
+          <Badge bg={
           data.confidence === 'high'
             ? 'success'
             : data.confidence === 'medium'
             ? 'warning'
+            : data.confidence === 'low'
+            ? 'info'
             : 'secondary'
-        }>
+          }>
           {data.confidence}
         </Badge>
       </p>

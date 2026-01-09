@@ -19,7 +19,7 @@ AI_RECOMMENDATION_JSON_SCHEMA = {
       "diagnostic_hypotheses": {
         "type": "array",
         "items": {"type": "string"},
-        "minItems": 1,
+        "minItems": 0,
         "maxItems": 5
       },
       "recommended_tests": {
@@ -36,23 +36,19 @@ AI_RECOMMENDATION_JSON_SCHEMA = {
       },
       "rationale_brief": {"type": "string"},
       "evidence_cases_used": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 5,
-            "items": {
-                "type": "object",
-                "additionalProperties": False,   # 👈 ESTO ES LO QUE FALTABA
-                "required": ["encounter_id", "similarity"],
-                "properties": {
-                "encounter_id": {
-                    "type": "integer"
-                },
-                "similarity": {
-                    "type": "number"
-                }
-                }
-            }
-        },
+        "type": "array",
+        "minItems": 0,
+        "maxItems": 5,
+        "items": {
+          "type": "object",
+          "additionalProperties": False,
+          "required": ["encounter_id", "similarity"],
+          "properties": {
+            "encounter_id": { "type": "integer" },
+            "similarity": { "type": "number" }
+          }
+        }
+      },
       "confidence": {
         "type": "string",
         "enum": ["low", "medium", "high"]
