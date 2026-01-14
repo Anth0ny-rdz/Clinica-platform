@@ -24,6 +24,7 @@ export default function Usuarios() {
     address: '',
     birth_date: '',
     rol_id: 0,
+    tipo_documento: "cedula"
   })
 
   const [formDoctor, setFormDoctor] = useState({
@@ -139,6 +140,7 @@ export default function Usuarios() {
         address: '',
         birth_date: '',
         rol_id: 0,
+        tipo_documento: "cedula"
       })
     } catch {
       setMessage('❌ Error al crear usuario.')
@@ -297,6 +299,7 @@ export default function Usuarios() {
             <input
               type="password"
               className="form-control"
+              autoComplete='new-password'
               value={formUser.password}
               onChange={(e) =>
                 setFormUser({ ...formUser, password: e.target.value })
@@ -505,6 +508,7 @@ export default function Usuarios() {
             <input
               type="email"
               className="form-control"
+              autoComplete='off'
               value={formDoctor.correo_institucional}
               onChange={(e) =>
                 setFormDoctor({ ...formDoctor, correo_institucional: e.target.value })
@@ -548,6 +552,7 @@ export default function Usuarios() {
             <input
               type="password"
               className="form-control"
+              autoComplete='new-password'
               value={formDoctor.password}
               onChange={(e) =>
                 setFormDoctor({ ...formDoctor, password: e.target.value })

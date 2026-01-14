@@ -42,6 +42,11 @@ export default function Usuarios() {
     "pending" | "accepted" | "rejected" | "expired"
   >("pending")
 
+  const [tipoConsentimiento, setTipoConsentimiento] = useState<
+    "digital" | "fisico"
+  >("digital")
+
+
   // Cargar roles
   useEffect(() => {
     const loadRoles = async () => {
@@ -181,9 +186,17 @@ export default function Usuarios() {
         ...form,
         tipo_documento: tipoDocumento,
         seguro_medico: tieneSeguro ? form.seguro_medico : "Ninguno",
+        consentimiento_tipo: tipoConsentimiento,
       }
 
       const result = await createUserRequest(dataToSend)
+
+        if (tipoConsentimiento === "fisico") {
+          setModalState("accepted")
+          setShowPendingModal(true)
+          setMessage("✅ Consentimiento fisico registrado.")
+          return // ⛔ NO polling, NO WhatsApp
+        }
 
         // guardar ID pendiente
         setPendingId(result.pending_id)
@@ -287,6 +300,7 @@ export default function Usuarios() {
           <input
             className="form-control"
             name="id_number"
+            autoComplete='off'
             placeholder={
               tipoDocumento === "cedula"
                 ? "1720012345"
@@ -343,6 +357,7 @@ export default function Usuarios() {
             type="password"
             className="form-control"
             name="password"
+            autoComplete="new-password"
             value={form.password}
             onChange={handleChange}
             required
@@ -454,6 +469,39 @@ export default function Usuarios() {
             <input className="form-control" value="Paciente" disabled />
           )}
         </div>
+
+          <div className="col-12">
+        <label className="form-label">Tipo de consentimiento</label>
+
+        <div className="form-check">
+          <input
+            className="form-check-input"
+            type="radio"
+            name="consentimiento"
+            value="digital"
+            checked={tipoConsentimiento === "digital"}
+            onChange={() => setTipoConsentimiento("digital")}
+          />
+          <label className="form-check-label">
+            Digital (WhatsApp)
+          </label>
+        </div>
+
+        <div className="form-check mt-1">
+          <input
+            className="form-check-input"
+            type="radio"
+            name="consentimiento"
+            value="fisico"
+            checked={tipoConsentimiento === "fisico"}
+            onChange={() => setTipoConsentimiento("fisico")}
+          />
+          <label className="form-check-label">
+            Fisico (en clínica)
+          </label>
+        </div>
+      </div>
+
 
         {/* BOTÓN */}
         <div className="col-12 mt-2">

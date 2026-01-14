@@ -84,6 +84,9 @@ class UserCreate(BaseModel):
     genre: Optional[str] = None
     seguro_medico: Optional[str] = None
 
+    consentimiento_tipo: Literal["digital", "fisico"] = "digital"
+
+
 #1
 @app.post("/create_user")
 def create_user(user: UserCreate):
@@ -2906,12 +2909,12 @@ def ai_analyze_draft(data: dict):
 @app.post("/create_user_request")
 def create_user_request(user: UserCreate):
     print("📦 SUPABASE URL (create_user_request):", SUPABASE_URL)
+    print("🧪 consentimiento_tipo recibido:", user.consentimiento_tipo)
 
-    # 1️⃣ VALIDACIÓN PREVIA DE DOCUMENTO (YA EXISTENTE)
+    # 1️⃣ VALIDACIÓN DOCUMENTO
     validar_documento(user.tipo_documento, user.id_number)
 
-    # 2️⃣ VALIDAR DUPLICADOS (🔴 NUEVO - CRÍTICO)
-    # 2.1 Cédula / pasaporte duplicado
+    # 2️⃣ VALIDAR DUPLICADOS
     doc_existente = supabase.table("user_profile") \
         .select("user_profile_id") \
         .eq("id_number", user.id_number) \
@@ -2923,7 +2926,6 @@ def create_user_request(user: UserCreate):
             detail="⚠️ El documento ya se encuentra registrado."
         )
 
-    # 2.2 Correo duplicado
     email_existente = supabase.table("users") \
         .select("userid") \
         .eq("email", user.email) \
@@ -2935,17 +2937,29 @@ def create_user_request(user: UserCreate):
             detail="⚠️ El correo electrónico ya se encuentra registrado."
         )
 
-    # 3️⃣ NORMALIZAR TELÉFONO (YA EXISTENTE)
+    # 3️⃣ CONSENTIMIENTO FÍSICO → SE TERMINA AQUÍ
+    if user.consentimiento_tipo == "fisico":
+        print("🖊️ CONSENTIMIENTO FÍSICO - CREANDO USUARIO")
+        user_id = crear_usuario_real(user.dict())
+        return {
+            "message": "Consentimiento físico registrado.",
+            "status": "accepted",
+            "user_id": user_id
+        }
+
+    # 🔽 🔽 TODO LO DE ABAJO ES SOLO DIGITAL 🔽 🔽
+
+    # 4️⃣ NORMALIZAR TELÉFONO
     telefono = normalizar_telefono_ec(user.telephone)
 
-    # 4️⃣ EXPIRAR PENDINGS ANTERIORES (YA EXISTENTE - CORRECTO)
+    # 5️⃣ EXPIRAR PENDINGS ANTERIORES
     supabase.table("pending_users").update({
         "status": "expired"
     }).eq("phone", telefono).eq("status", "pending").execute()
 
     expires_at = datetime.utcnow() + timedelta(minutes=3)
 
-    # 5️⃣ CREAR NUEVO PENDING (YA EXISTENTE)
+    # 6️⃣ CREAR PENDING DIGITAL
     pending = supabase.table("pending_users").insert({
         "phone": telefono,
         "payload": user.dict(),
@@ -2956,7 +2970,7 @@ def create_user_request(user: UserCreate):
 
     pending_id = pending.data[0]["id"]
 
-    # 6️⃣ ENVIAR WHATSAPP (YA EXISTENTE)
+    # 7️⃣ ENVIAR WHATSAPP
     enviado = enviar_consentimiento_simple(
         numero=telefono,
         pending_id=pending_id
@@ -2972,6 +2986,7 @@ def create_user_request(user: UserCreate):
         "message": "Solicitud enviada. Esperando aceptación del paciente.",
         "pending_id": pending_id
     }
+
 
 
 @app.get("/pending_status/{pending_id}")
