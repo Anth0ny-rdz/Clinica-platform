@@ -5,7 +5,6 @@ import RoleProtectedRoute from '@/components/RoleProtectedRoute'
 import Dashboard from './Dashboard'
 
 import Usuarios from './Usuarios'
-import Citas from './Citas'
 import Historias from './Historias'
 import Habitaciones from './Habitaciones'
 
@@ -21,7 +20,6 @@ export default function AdminLayout() {
               <Route index element={<Dashboard/>} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="usuarios" element={<Usuarios />} />
-              <Route path="citas" element={<Citas />} />
               <Route path="historias" element={<Historias />} />
               <Route path="habitaciones" element={<Habitaciones />} />
             </Routes>

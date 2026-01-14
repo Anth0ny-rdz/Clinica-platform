@@ -88,153 +88,208 @@ export default function Pendientes() {
   }
 
   return (
-    <Card className="shadow p-4">
+  <div
+    className="container-fluid py-4"
+    style={{
+      background: "#f2f4f7",
+      minHeight: "100vh",
+    }}
+  >
+    <div className="mx-auto" style={{ maxWidth: 1200 }}>
+      <Card
+        className="shadow-sm"
+        style={{
+          borderRadius: "14px",
+          border: "1px solid #e6e9ee",
+        }}
+      >
+        <Card.Body className="p-4">
 
-      {/* ================= HEADER ================= */}
-      <div className="mb-3">
-        <h3 className="mb-1">🧪 Exámenes Pendientes</h3>
-        <p className="text-muted mb-0">
-          Exámenes en espera de procesamiento por laboratorio
-        </p>
-      </div>
-
-      {message && (
-        <Alert variant="danger">
-          ❌ {message}
-        </Alert>
-      )}
-
-      {/* ================= FILTROS ================= */}
-      <Card className="p-3 mb-3 bg-light border">
-        <div className="row g-2 align-items-end">
-
-          <div className="col-md-3">
-            <Form.Label className="fw-semibold">Tipo de examen</Form.Label>
-            <Form.Control
-              placeholder="Ej: Glucosa"
-              value={filters.examtype}
-              onChange={(e) =>
-                setFilters({ ...filters, examtype: e.target.value })
-              }
-            />
+          {/* ================= HEADER ================= */}
+          <div className="mb-4">
+            <h3 className="fw-bold mb-1" style={{ color: "#2c3e50" }}>
+              🧪 Exámenes Pendientes
+            </h3>
+            <p className="text-muted mb-0">
+              Exámenes en espera de procesamiento por el laboratorio clínico
+            </p>
           </div>
 
-          <div className="col-md-3">
-            <Form.Label className="fw-semibold">Paciente</Form.Label>
-            <Form.Control
-              placeholder="Nombre del paciente"
-              value={filters.patient}
-              onChange={(e) =>
-                setFilters({ ...filters, patient: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="col-md-3">
-            <Form.Label className="fw-semibold">Médico</Form.Label>
-            <Form.Control
-              placeholder="Nombre del médico"
-              value={filters.doctor}
-              onChange={(e) =>
-                setFilters({ ...filters, doctor: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="col-md-3 d-grid">
-            {(filters.examtype || filters.patient || filters.doctor) && (
-              <Button
-                variant="outline-secondary"
-                type="button"
-                onClick={clearFilters}
-              >
-                ↺ Limpiar filtros
-              </Button>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {/* ================= INDICADOR BÚSQUEDA ================= */}
-      {searching && (
-        <div className="text-muted mb-2" style={{ fontSize: "0.9rem" }}>
-          Buscando resultados…
-        </div>
-      )}
-
-      {/* ================= TABLA ================= */}
-      <Table bordered hover responsive className="mt-2">
-        <thead className="table-light">
-          <tr>
-            <th>Paciente</th>
-            <th>Examen</th>
-            <th>Médico</th>
-            <th>Observaciones</th>
-            <th>Orden</th>
-            <th>Acción</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {items.length > 0 ? (
-            items.map((i) => (
-              <tr key={i.item_id}>
-                {/* PACIENTE */}
-                <td>
-                  <strong>
-                    {i.exam_orders?.patients?.names ?? "—"}{" "}
-                    {i.exam_orders?.patients?.lastname ?? ""}
-                  </strong>
-                  <br />
-                  <small className="text-muted">
-                    Cédula: {i.exam_orders?.patients?.doc_id ?? "—"}
-                  </small>
-                </td>
-
-                {/* EXAMEN */}
-                <td>
-                  {i.exam_type?.name ?? "Sin tipo"}
-                  <br />
-                  <Badge bg="warning" className="mt-1">
-                    Pendiente
-                  </Badge>
-                </td>
-
-                {/* MÉDICO */}
-                <td>
-                  Dr. {i.exam_orders?.doctors?.nombres ?? "—"}{" "}
-                  {i.exam_orders?.doctors?.apellidos ?? ""}
-                </td>
-
-                {/* OBSERVACIONES */}
-                <td>{i.exam_orders?.observations ?? "—"}</td>
-
-                {/* ORDEN */}
-                <td>#{i.exam_orders?.order_id ?? "—"}</td>
-
-                {/* ACCIÓN */}
-                <td>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() =>
-                      navigate(`/laboratorio/item/${i.item_id}`)
-                    }
-                  >
-                    🧪 Procesar
-                  </Button>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan={6} className="text-center text-muted py-3">
-                No existen exámenes pendientes con los filtros aplicados.
-              </td>
-            </tr>
+          {/* ================= ERROR ================= */}
+          {message && (
+            <Alert variant="danger" className="py-2">
+              ❌ {message}
+            </Alert>
           )}
-        </tbody>
-      </Table>
-    </Card>
-  );
+
+          {/* ================= FILTROS ================= */}
+          <div
+            className="mb-3"
+            style={{
+              background: "#f8f9fb",
+              padding: "1rem",
+              borderRadius: "12px",
+              border: "1px solid #e3e6eb",
+            }}
+          >
+            <div className="row g-3 align-items-end">
+              <div className="col-md-3">
+                <Form.Label className="fw-semibold mb-1">
+                  Tipo de examen
+                </Form.Label>
+                <Form.Control
+                  placeholder="Ej: Glucosa"
+                  value={filters.examtype}
+                  onChange={(e) =>
+                    setFilters({ ...filters, examtype: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="col-md-3">
+                <Form.Label className="fw-semibold mb-1">
+                  Paciente
+                </Form.Label>
+                <Form.Control
+                  placeholder="Nombre del paciente"
+                  value={filters.patient}
+                  onChange={(e) =>
+                    setFilters({ ...filters, patient: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="col-md-3">
+                <Form.Label className="fw-semibold mb-1">
+                  Médico
+                </Form.Label>
+                <Form.Control
+                  placeholder="Nombre del médico"
+                  value={filters.doctor}
+                  onChange={(e) =>
+                    setFilters({ ...filters, doctor: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="col-md-3 d-grid">
+                {(filters.examtype || filters.patient || filters.doctor) && (
+                  <Button
+                    variant="outline-secondary"
+                    type="button"
+                    onClick={clearFilters}
+                  >
+                    ↺ Limpiar filtros
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ================= BUSCANDO ================= */}
+          {searching && (
+            <div className="text-muted mb-3" style={{ fontSize: "0.9rem" }}>
+              <Spinner animation="border" size="sm" className="me-2" />
+              Buscando resultados…
+            </div>
+          )}
+
+          {/* ================= TABLA ================= */}
+          <div
+            style={{
+              borderRadius: "12px",
+              overflow: "hidden",
+              border: "1px solid #e6e9ee",
+            }}
+          >
+            <Table hover responsive className="mb-0">
+              <thead style={{ background: "#f4f6f9" }}>
+                <tr>
+                  <th>Paciente</th>
+                  <th>Examen</th>
+                  <th>Médico</th>
+                  <th>Observaciones</th>
+                  <th>Orden</th>
+                  <th className="text-center">Acción</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {items.length > 0 ? (
+                  items.map((i) => (
+                    <tr key={i.item_id}>
+                      {/* PACIENTE */}
+                      <td>
+                        <strong>
+                          {i.exam_orders?.patients?.names ?? "—"}{" "}
+                          {i.exam_orders?.patients?.lastname ?? ""}
+                        </strong>
+                        <br />
+                        <small className="text-muted">
+                          Cédula:{" "}
+                          {i.exam_orders?.patients?.doc_id ?? "—"}
+                        </small>
+                      </td>
+
+                      {/* EXAMEN */}
+                      <td>
+                        <div>{i.exam_type?.name ?? "Sin tipo"}</div>
+                        <Badge bg="warning" className="mt-1">
+                          Pendiente
+                        </Badge>
+                      </td>
+
+                      {/* MÉDICO */}
+                      <td>
+                        Dr.{" "}
+                        {i.exam_orders?.doctors?.nombres ?? "—"}{" "}
+                        {i.exam_orders?.doctors?.apellidos ?? ""}
+                      </td>
+
+                      {/* OBSERVACIONES */}
+                      <td>
+                        {i.exam_orders?.observations ?? "—"}
+                      </td>
+
+                      {/* ORDEN */}
+                      <td>
+                        #{i.exam_orders?.order_id ?? "—"}
+                      </td>
+
+                      {/* ACCIÓN */}
+                      <td className="text-center">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() =>
+                            navigate(
+                              `/laboratorio/item/${i.item_id}`
+                            )
+                          }
+                        >
+                          🧪 Procesar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="text-center text-muted py-4"
+                    >
+                      No existen exámenes pendientes con los filtros
+                      aplicados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </Table>
+          </div>
+        </Card.Body>
+      </Card>
+    </div>
+  </div>
+);
+
 }

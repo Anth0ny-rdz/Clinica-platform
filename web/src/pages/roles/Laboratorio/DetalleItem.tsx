@@ -60,105 +60,216 @@ export default function DetalleItem() {
   }
 
   return (
-    <div className="container mt-4">
-
-      <Button variant="link" onClick={() => navigate(-1)}>
-        ← Volver
+  <div
+    className="container-fluid py-4"
+    style={{
+      background: "#f2f4f7",
+      minHeight: "100vh",
+    }}
+  >
+    <div className="mx-auto" style={{ maxWidth: 1100 }}>
+      {/* VOLVER */}
+      <Button
+        variant="link"
+        className="mb-3 px-0"
+        onClick={() => navigate(-1)}
+        style={{ textDecoration: "none", fontWeight: 500 }}
+      >
+        ← Volver a exámenes
       </Button>
 
-      <Card className="shadow p-4">
-        <h3>🧪 Examen #{item.item_id}</h3>
+      <Card
+        className="shadow-sm"
+        style={{
+          borderRadius: "14px",
+          border: "1px solid #e6e9ee",
+        }}
+      >
+        <Card.Body className="p-4">
 
-        <p><strong>Paciente:</strong> {item.patient_name}</p>
-        <p><strong>Cédula:</strong> {item.patient_doc_id}</p>
-
-        <p><strong>Médico solicitante:</strong> {item.doctor_name}</p>
-        <p><strong>Especialidad:</strong> {item.especialidad}</p>
-
-        <hr />
-
-        <p><strong>Examen:</strong> {item.exam_type_name}</p>
-        <p><strong>Descripción:</strong> {item.exam_type_description || "—"}</p>
-        <p><strong>Estado:</strong> {item.status}</p>
-
-        <hr />
-
-        {/* ------------------------------
-            VISUALIZACIÓN DEL RESULTADO
-        ------------------------------ */}
-        {item.status === "completado" && resultUrl && (
-          <div className="mt-4">
-            <h5>📄 Resultado</h5>
-
-            {/* Mostrar PDF */}
-            {isPDF && (
-              <>
-                <iframe
-                  src={resultUrl}
-                  style={{ width: "100%", height: "600px", borderRadius: "8px" }}
-                ></iframe>
-
-                <Button
-                  variant="primary"
-                  className="mt-3"
-                  href={resultUrl}
-                  target="_blank"
-                >
-                  Descargar PDF
-                </Button>
-              </>
-            )}
-
-            {/* Mostrar imagen */}
-            {isImage && (
-              <>
-                <img
-                  src={resultUrl}
-                  alt="Resultado examen"
-                  style={{
-                    maxWidth: "100%",
-                    borderRadius: "10px",
-                    border: "1px solid #ddd",
-                  }}
-                />
-
-                <Button
-                  variant="primary"
-                  className="mt-3"
-                  href={resultUrl}
-                  target="_blank"
-                >
-                  Ver imagen completa
-                </Button>
-              </>
-            )}
-
-            {/* Otro tipo */}
-            {!isPDF && !isImage && (
-              <Alert variant="info" className="mt-3">
-                Tipo de archivo no soportado.
-                <br />
-                <a href={resultUrl} target="_blank">
-                  Descargar archivo
-                </a>
-              </Alert>
-            )}
+          {/* ================= HEADER ================= */}
+          <div className="mb-4">
+            <h3 className="fw-bold mb-1" style={{ color: "#2c3e50" }}>
+              🧪 Examen #{item.item_id}
+            </h3>
+            <span className="text-muted">
+              Detalle completo del examen de laboratorio
+            </span>
           </div>
-        )}
 
-        {/* ------------------------------
-            SUBIR RESULTADO
-        ------------------------------ */}
-        {item.status === "pendiente" && (
-          <Button
-            variant="success"
-            className="mt-3"
-            onClick={() => navigate(`/laboratorio/item/${item.item_id}/subir`)}
+          {/* ================= DATOS PACIENTE ================= */}
+          <div className="mb-4">
+            <h6 className="fw-semibold text-secondary mb-2">
+              Información del paciente
+            </h6>
+
+            <div className="row g-2">
+              <div className="col-md-6">
+                <strong>Paciente:</strong> {item.patient_name}
+              </div>
+              <div className="col-md-6">
+                <strong>Cédula:</strong> {item.patient_doc_id}
+              </div>
+            </div>
+          </div>
+
+          {/* ================= DATOS MÉDICO ================= */}
+          <div className="mb-4">
+            <h6 className="fw-semibold text-secondary mb-2">
+              Solicitud médica
+            </h6>
+
+            <div className="row g-2">
+              <div className="col-md-6">
+                <strong>Médico solicitante:</strong> {item.doctor_name}
+              </div>
+              <div className="col-md-6">
+                <strong>Especialidad:</strong> {item.especialidad}
+              </div>
+            </div>
+          </div>
+
+          {/* ================= DATOS EXAMEN ================= */}
+          <div
+            className="mb-4"
+            style={{
+              background: "#f8f9fb",
+              padding: "1rem",
+              borderRadius: "12px",
+              border: "1px solid #e3e6eb",
+            }}
           >
-            📤 Subir Resultado
-          </Button>
-        )}
+            <h6 className="fw-semibold mb-2">
+              Detalles del examen
+            </h6>
+
+            <p className="mb-1">
+              <strong>Examen:</strong> {item.exam_type_name}
+            </p>
+
+            <p className="mb-1">
+              <strong>Descripción:</strong>{" "}
+              {item.exam_type_description || "—"}
+            </p>
+
+            <p className="mb-0">
+              <strong>Estado:</strong>{" "}
+              <span
+                className={
+                  item.status === "completado"
+                    ? "text-success fw-semibold"
+                    : "text-warning fw-semibold"
+                }
+              >
+                {item.status}
+              </span>
+            </p>
+          </div>
+
+          {/* ================= RESULTADO ================= */}
+          {item.status === "completado" && resultUrl && (
+            <div className="mb-4">
+              <h5 className="fw-semibold mb-3">
+                📄 Resultado del examen
+              </h5>
+
+              {/* PDF */}
+              {isPDF && (
+                <>
+                  <div
+                    style={{
+                      border: "1px solid #e3e6eb",
+                      borderRadius: "10px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <iframe
+                      src={resultUrl}
+                      style={{
+                        width: "100%",
+                        height: "600px",
+                        border: "none",
+                      }}
+                    />
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    className="mt-3"
+                    href={resultUrl}
+                    target="_blank"
+                  >
+                    Descargar PDF
+                  </Button>
+                </>
+              )}
+
+              {/* IMAGEN */}
+              {isImage && (
+                <>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      background: "#fff",
+                      border: "1px solid #e3e6eb",
+                      borderRadius: "10px",
+                      padding: "1rem",
+                    }}
+                  >
+                    <img
+                      src={resultUrl}
+                      alt="Resultado examen"
+                      style={{
+                        maxWidth: "100%",
+                        borderRadius: "8px",
+                      }}
+                    />
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    className="mt-3"
+                    href={resultUrl}
+                    target="_blank"
+                  >
+                    Ver imagen completa
+                  </Button>
+                </>
+              )}
+
+              {/* OTRO */}
+              {!isPDF && !isImage && (
+                <Alert variant="info" className="mt-3">
+                  Tipo de archivo no soportado para vista previa.
+                  <br />
+                  <a href={resultUrl} target="_blank">
+                    Descargar archivo
+                  </a>
+                </Alert>
+              )}
+            </div>
+          )}
+
+          {/* ================= SUBIR RESULTADO ================= */}
+          {item.status === "pendiente" && (
+            <div className="text-end">
+              <Button
+                variant="success"
+                onClick={() =>
+                  navigate(
+                    `/laboratorio/item/${item.item_id}/subir`
+                  )
+                }
+              >
+                📤 Subir resultado
+              </Button>
+            </div>
+          )}
+
+        </Card.Body>
       </Card>
     </div>
-  );
+  </div>
+);
+
 }
