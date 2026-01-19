@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../services/supabaseClient";
+import Skeleton from "../Skeleton";
 import "./AppointmentsChart.css";
 
 interface MonthData {
@@ -28,7 +29,6 @@ export default function AppointmentsChart() {
     endDate: Date
   ): Promise<MonthData[]> => {
     const months: MonthData[] = [];
-
     const current = new Date(startDate);
 
     while (current <= endDate) {
@@ -87,7 +87,7 @@ export default function AppointmentsChart() {
         dataMensual: monthlyData,
       });
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error cargando citas:", error);
     } finally {
       setLoading(false);
     }
@@ -97,30 +97,62 @@ export default function AppointmentsChart() {
     fetchAppointmentsData();
   }, [fetchAppointmentsData]);
 
-  if (loading)
-    return <div className="chart-loading">Cargando...</div>;
+  /* =========================
+     SKELETON STATE
+  ========================== */
+  if (loading) {
+    return (
+      <div className="appointments-chart-small">
+        <Skeleton height={22} width="40%" />
+
+        <div className="summary-mini mt-3">
+          <Skeleton height={16} width="60%" />
+          <Skeleton height={16} width="60%" className="mt-2" />
+          <Skeleton height={16} width="60%" className="mt-2" />
+        </div>
+
+        <div className="chart-mini mt-4">
+          {[1, 2, 3, 4, 5, 6].map((_, i) => (
+            <div key={i} className="month-mini">
+              <Skeleton height={14} width="30%" />
+              <Skeleton height={12} width="80%" className="mt-2" />
+              <Skeleton height={12} width="65%" className="mt-1" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  /* =========================
+     DATA RENDER
+  ========================== */
 
   const maxValue =
     Math.max(...chartData.dataMensual.map((m) => m.agendadas || 1)) || 1;
 
   return (
     <div className="appointments-chart-small">
-      <h3>📊 CITAS</h3>
+      <h3>Citas Médicas</h3>
 
       <div className="summary-mini">
         <div className="mini-item">
-          <span className="mini-label">Agendadas:</span>
+          <span className="mini-label">Agendadas</span>
           <span className="mini-value">{chartData.agendadas}</span>
         </div>
+
         <div className="mini-item">
-          <span className="mini-label">Atendidas:</span>
+          <span className="mini-label">Atendidas</span>
           <span className="mini-value">{chartData.atendidas}</span>
         </div>
+
         <div className="mini-item">
-          <span className="mini-label">Tasa Atencion:</span>
+          <span className="mini-label">Tasa de atención</span>
           <span className="mini-value">
             {chartData.agendadas > 0
-              ? Math.round((chartData.atendidas / chartData.agendadas) * 100)
+              ? Math.round(
+                  (chartData.atendidas / chartData.agendadas) * 100
+                )
               : 0}
             %
           </span>

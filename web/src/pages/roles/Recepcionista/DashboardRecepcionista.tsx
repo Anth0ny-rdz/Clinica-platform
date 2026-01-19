@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Card, Button, Container, Row, Col, Spinner, Alert } from "react-bootstrap"
 import { CalendarDays, BedDouble, Users } from "lucide-react"
-import { fetchPatientsCountToday, fetchAppointmentsCountToday } from "@/services/dashboardService"
+import { fetchPatientsCountToday, fetchAppointmentsCountToday, fetchAvailableRoomsCount } from "@/services/dashboardService"
 import logoClinica from "@/assets/logo_clinica.png"
 
 export default function DashboardRecepcionista() {
@@ -13,7 +13,7 @@ export default function DashboardRecepcionista() {
   const [resumen, setResumen] = useState({
     pacientesHoy: 0,
     citasHoy: 0,
-    habitacionesDisponibles: 0, // futuro
+    habitacionesDisponibles: 0,
   })
 
   useEffect(() => {
@@ -22,15 +22,16 @@ export default function DashboardRecepcionista() {
         setLoading(true)
         setError(null)
 
-        const [patientsData, appointmentsData] = await Promise.all([
+        const [patientsData, appointmentsData, roomsData] = await Promise.all([
           fetchPatientsCountToday(),
           fetchAppointmentsCountToday(),
+          fetchAvailableRoomsCount(),
         ])
 
         setResumen({
           pacientesHoy: patientsData.count || 0,
           citasHoy: appointmentsData.count || 0,
-          habitacionesDisponibles: 0, // temporal
+          habitacionesDisponibles: roomsData.count || 0,
         })
       } catch (err: any) {
         console.error("Error cargando dashboard:", err)
@@ -99,7 +100,7 @@ export default function DashboardRecepcionista() {
                   <Card.Title className="fw-semibold text-info">
                     Habitaciones disponibles
                   </Card.Title>
-                  <h2 className="fw-bold text-info">{resumen.habitacionesDisponibles ?? "—"}</h2>
+                  <h2 className="fw-bold text-info">{resumen.habitacionesDisponibles}</h2>
                 </Card.Body>
               </Card>
             </Col>

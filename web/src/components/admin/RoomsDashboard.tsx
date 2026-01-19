@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../services/supabaseClient";
+import Skeleton from "../Skeleton";
 import "./RoomsDashboard.css";
 
 interface Room {
@@ -48,9 +49,8 @@ export default function RoomsDashboard() {
 
       if (admissionsError) throw admissionsError;
 
-      const habitacionesOcupadas = admissions?.map(
-        (a) => a.habitacion_asignada
-      ) || [];
+      const habitacionesOcupadas =
+        admissions?.map((a) => a.habitacion_asignada) || [];
 
       const roomsConEstado =
         rooms?.map((r: Room) => ({
@@ -73,22 +73,63 @@ export default function RoomsDashboard() {
 
       setHabitaciones(roomsConEstado);
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error habitaciones:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading)
-    return <div className="loading">Cargando estado de habitaciones...</div>;
+  /* =========================
+     SKELETON STATE
+  ========================== */
+  if (loading) {
+    return (
+      <div className="rooms-dashboard">
+        <Skeleton height={26} width="40%" />
+
+        {/* SUMMARY CARDS */}
+        <div className="summary-cards mt-3">
+          {[1, 2, 3, 4].map((_, i) => (
+            <div key={i} className="summary-card">
+              <Skeleton height={20} width="60%" />
+              <Skeleton height={32} width="40%" className="mt-2" />
+            </div>
+          ))}
+        </div>
+
+        {/* DONUT CHART */}
+        <div className="chart-section mt-4">
+          <Skeleton height={220} width={220} rounded={110} />
+        </div>
+
+        {/* ROOMS GRID */}
+        <div className="rooms-grid-section mt-4">
+          <Skeleton height={22} width="50%" />
+
+          <div className="rooms-grid mt-3">
+            {[1, 2, 3, 4, 5, 6].map((_, i) => (
+              <div key={i} className="room-card">
+                <Skeleton height={16} width="70%" />
+                <Skeleton height={14} width="40%" className="mt-1" />
+                <Skeleton height={12} width="50%" className="mt-2" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* =========================
+     DATA RENDER
+  ========================== */
 
   return (
     <div className="rooms-dashboard">
-      <h1>ESTADO DE HABITACIONES</h1>
+      <h1>Estado de Habitaciones</h1>
 
       <div className="summary-cards">
         <div className="summary-card total">
-          <div className="card-icon">🏥</div>
           <div className="card-content">
             <h3>Total Habitaciones</h3>
             <div className="card-number">{roomStats.total}</div>
@@ -96,7 +137,6 @@ export default function RoomsDashboard() {
         </div>
 
         <div className="summary-card available">
-          <div className="card-icon">✅</div>
           <div className="card-content">
             <h3>Disponibles</h3>
             <div className="card-number">{roomStats.disponibles}</div>
@@ -104,7 +144,6 @@ export default function RoomsDashboard() {
         </div>
 
         <div className="summary-card occupied">
-          <div className="card-icon">🛌</div>
           <div className="card-content">
             <h3>Ocupadas</h3>
             <div className="card-number">{roomStats.ocupadas}</div>
@@ -112,7 +151,6 @@ export default function RoomsDashboard() {
         </div>
 
         <div className="summary-card occupancy">
-          <div className="card-icon">📊</div>
           <div className="card-content">
             <h3>Ocupación</h3>
             <div className="card-number">
@@ -145,10 +183,10 @@ export default function RoomsDashboard() {
 
           <div className="chart-legend">
             <div className="legend-item">
-              <span>🛌 Ocupadas: {roomStats.ocupadas}</span>
+              🛌 Ocupadas: {roomStats.ocupadas}
             </div>
             <div className="legend-item">
-              <span>✅ Disponibles: {roomStats.disponibles}</span>
+              ✅ Disponibles: {roomStats.disponibles}
             </div>
           </div>
         </div>

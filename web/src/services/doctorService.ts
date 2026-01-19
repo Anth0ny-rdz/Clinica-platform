@@ -6,7 +6,31 @@ export async function createDoctorFull(data: any) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Error al crear doctor')
+  
+  if (!res.ok) {
+    // Intentar extraer el mensaje de error del backend
+    let errorMessage = 'Error al crear doctor'
+    
+    try {
+      const errorData = await res.json()
+      console.log("Error data del backend:", errorData) // Para debug
+      // FastAPI envía el error en el campo "detail"
+      errorMessage = errorData.detail || errorData.message || errorMessage
+    } catch (parseError) {
+      // Si no se puede parsear, intentar leer como texto
+      console.log("No se pudo parsear JSON, intentando texto...")
+      try {
+        const errorText = await res.text()
+        console.log("Error como texto:", errorText)
+        if (errorText) errorMessage = errorText
+      } catch (textError) {
+        console.log("Tampoco se pudo leer como texto")
+      }
+    }
+    
+    throw new Error(errorMessage)
+  }
+  
   return await res.json()
 }
 

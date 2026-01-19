@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Card, Spinner, Button, Modal, Form } from "react-bootstrap";
+import { Card, Spinner, Button, Modal, Form, Row, Col } from "react-bootstrap";
 import { fetchAdmissionById, altaMedica } from "@/services/admissionService";
 
 export default function HospitalizacionDetalle() {
@@ -69,23 +69,104 @@ export default function HospitalizacionDetalle() {
   return (
     <>
       <Card className="p-4 shadow-sm">
-        <h3>Detalles de la Hospitalización</h3>
+        <h3 className="mb-4">Detalles de la Hospitalización</h3>
 
-        <p><strong>Paciente:</strong> {admission.patients.names} {admission.patients.lastname}</p>
-        <p><strong>Documento:</strong> {admission.patients.doc_id}</p>
-        <p><strong>Razón ingreso:</strong> {admission.razon_ingreso}</p>
-        <p><strong>Diagnóstico:</strong> {admission.diagnostico_ingreso}</p>
-        <p><strong>Habitación:</strong> {admission.habitacion_asignada}</p>
-        <p><strong>Estado:</strong> {admission.estado_ingreso}</p>
+        {/* INFORMACIÓN DEL PACIENTE */}
+        <h5 className="text-primary mb-3">📋 Datos del Paciente</h5>
+        <Row className="mb-3">
+          <Col md={6}>
+            <p><strong>Paciente:</strong> {admission.patients.names} {admission.patients.lastname}</p>
+          </Col>
+          <Col md={6}>
+            <p><strong>Documento:</strong> {admission.patients.doc_id}</p>
+          </Col>
+        </Row>
 
         <hr />
 
+        {/* INFORMACIÓN DEL INGRESO */}
+        <h5 className="text-primary mb-3">🏥 Información del Ingreso</h5>
+        <Row className="mb-3">
+          <Col md={6}>
+            <p><strong>Fecha de ingreso:</strong> {admission.fecha_ingreso}</p>
+          </Col>
+          <Col md={6}>
+            <p><strong>Hora de ingreso:</strong> {admission.hora_ingreso}</p>
+          </Col>
+          <Col md={6}>
+            <p><strong>Tipo de ingreso:</strong> {admission.tipo_ingreso}</p>
+          </Col>
+          <Col md={6}>
+            <p>
+              <strong>Estado:</strong>{" "}
+              <span className={
+                admission.estado_ingreso === "activo" 
+                  ? "text-success" 
+                  : admission.estado_ingreso === "alta_medica"
+                  ? "text-info"
+                  : "text-secondary"
+              }>
+                {admission.estado_ingreso === "activo" 
+                  ? "Activo" 
+                  : admission.estado_ingreso === "alta_medica"
+                  ? "Alta Médica"
+                  : admission.estado_ingreso}
+              </span>
+            </p>
+          </Col>
+          <Col md={12}>
+            <p><strong>Razón de ingreso:</strong> {admission.razon_ingreso}</p>
+          </Col>
+          <Col md={12}>
+            <p><strong>Diagnóstico:</strong> {admission.diagnostico_ingreso}</p>
+          </Col>
+          <Col md={6}>
+            <p><strong>Habitación:</strong> {admission.habitacion_asignada}</p>
+          </Col>
+        </Row>
+
+        <hr />
+
+        {/* INFORMACIÓN DEL ACOMPAÑANTE */}
+        <h5 className="text-primary mb-3">👥 Datos del Acompañante</h5>
+        <Row className="mb-3">
+          <Col md={6}>
+            <p><strong>Nombre:</strong> {admission.persona_acompana || "No especificado"}</p>
+          </Col>
+          <Col md={6}>
+            <p><strong>Parentesco:</strong> {admission.parentesco_acompana || "No especificado"}</p>
+          </Col>
+          <Col md={6}>
+            <p><strong>Teléfono:</strong> {admission.telefono_acompana || "No especificado"}</p>
+          </Col>
+        </Row>
+
+        <hr />
+
+        {/* BOTÓN DE ALTA */}
         {admission.estado_ingreso === "activo" ? (
           <Button variant="success" onClick={() => setShowModal(true)}>
             Dar Alta Médica
           </Button>
         ) : (
-          <p className="text-success"><strong>Este paciente ya fue dado de alta.</strong></p>
+          <>
+            <p className="text-success mb-3"><strong>✓ Este paciente ya fue dado de alta.</strong></p>
+            {admission.fecha_alta && (
+              <Row>
+                <Col md={6}>
+                  <p><strong>Fecha de alta:</strong> {admission.fecha_alta}</p>
+                </Col>
+                <Col md={6}>
+                  <p><strong>Hora de alta:</strong> {admission.hora_alta}</p>
+                </Col>
+                {admission.motivo_alta && (
+                  <Col md={12}>
+                    <p><strong>Motivo de alta:</strong> {admission.motivo_alta}</p>
+                  </Col>
+                )}
+              </Row>
+            )}
+          </>
         )}
 
         {/* MODAL */}

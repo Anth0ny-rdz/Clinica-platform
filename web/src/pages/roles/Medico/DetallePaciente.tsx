@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Spinner, Button, Table, Alert, Badge } from "react-bootstrap"
+import { Card, Button, Table, Alert, Badge } from "react-bootstrap"
 
-import { fetchPatientByCedula, updatePatient, fetchHospitalizationsByPatient } from '@/services/patientService'
+import Skeleton from '@/components/skeleton'
+import {
+  fetchPatientByCedula,
+  updatePatient,
+  fetchHospitalizationsByPatient
+} from '@/services/patientService'
 import { fetchEncountersByPatient } from '@/services/encounterService'
 
 export default function DetallePaciente() {
@@ -12,17 +17,18 @@ export default function DetallePaciente() {
   const [patient, setPatient] = useState<any>(null)
   const [encounters, setEncounters] = useState<any[]>([])
   const [hospitalizations, setHospitalizations] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
 
   /* =========================
-     CARGA DE DATOS (ORIGINAL)
+     CARGA DE DATOS
   ========================= */
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
+
         const data = await fetchPatientByCedula(doc_id!)
         setPatient(data)
 
@@ -51,20 +57,57 @@ export default function DetallePaciente() {
     try {
       await updatePatient(doc_id!, patient)
       setEditMode(false)
-      setMessage("✅ Paciente actualizado correctamente")
+      setMessage("Paciente actualizado correctamente")
     } catch (err: any) {
-      setMessage("❌ Error al guardar cambios: " + err.message)
+      setMessage("Error al guardar cambios: " + err.message)
     }
   }
 
   /* =========================
-     ESTADOS BASE
+     SKELETON STATE
   ========================= */
   if (loading) {
     return (
-      <div className="text-center my-5 text-muted">
-        <Spinner animation="border" className="me-2" />
-        Cargando información del paciente...
+      <div className="container mt-4" style={{ maxWidth: 1100 }}>
+        {/* HEADER */}
+        <div className="d-flex justify-content-between mb-3">
+          <Skeleton height={24} width="120px" />
+          <Skeleton height={36} width="220px" />
+        </div>
+
+        {/* DATOS PACIENTE */}
+        <Card className="shadow p-4 mb-4">
+          <Skeleton height={22} width="40%" />
+
+          <div className="row mt-3">
+            <div className="col-md-6">
+              <Skeleton height={16} className="mb-2" />
+              <Skeleton height={16} className="mb-2" />
+              <Skeleton height={16} className="mb-2" />
+            </div>
+            <div className="col-md-6">
+              <Skeleton height={16} className="mb-2" />
+              <Skeleton height={16} className="mb-2" />
+              <Skeleton height={16} className="mb-2" />
+            </div>
+          </div>
+        </Card>
+
+        {/* HOSPITALIZACIONES */}
+        <Card className="shadow p-4 mb-4">
+          <Skeleton height={22} width="50%" />
+          {[1, 2].map((_, i) => (
+            <Skeleton key={i} height={18} className="mt-3" />
+          ))}
+        </Card>
+
+        {/* HISTORIAS */}
+        <Card className="shadow p-4">
+          <Skeleton height={22} width="45%" />
+          {[1, 2, 3].map((_, i) => (
+            <Skeleton key={i} height={18} className="mt-3" />
+          ))}
+        </Card>
       </div>
     )
   }
@@ -73,9 +116,11 @@ export default function DetallePaciente() {
     return <Alert variant="danger">{message || "Paciente no encontrado"}</Alert>
   }
 
+  /* =========================
+     RENDER REAL
+  ========================= */
   return (
     <div className="container mt-4" style={{ maxWidth: "1100px" }}>
-
       {/* ================= HEADER ================= */}
       <div className="d-flex justify-content-between align-items-center mb-3">
         <Button variant="link" onClick={() => navigate(-1)}>
@@ -84,15 +129,17 @@ export default function DetallePaciente() {
 
         <Button
           variant="success"
-          onClick={() => navigate(`/medico/pacientes/${patient.patient_id}/nueva-historia`)}
+          onClick={() =>
+            navigate(`/medico/pacientes/${patient.patient_id}/nueva-historia`)
+          }
         >
-          ➕ Nueva Historia Clínica
+          Nueva Historia Clínica
         </Button>
       </div>
 
       {/* ================= DATOS PACIENTE ================= */}
       <Card className="shadow p-4 mb-4">
-        <h3 className="mb-3">🧍 Datos del Paciente</h3>
+        <h3 className="mb-3">Datos del Paciente</h3>
 
         <div className="row">
           <div className="col-md-6">
@@ -110,41 +157,25 @@ export default function DetallePaciente() {
         <hr />
 
         {/* ================= ANTECEDENTES ================= */}
-        <h4 className="mb-3">📌 Antecedentes</h4>
+        <h4 className="mb-3">Antecedentes</h4>
 
         {editMode ? (
           <div className="d-flex flex-column gap-2">
-            <textarea
-              name="personal_history"
-              value={patient.personal_history || ""}
-              onChange={handleChange}
-              className="form-control"
-              placeholder="Antecedentes personales"
-            />
-
-            <textarea
-              name="family_history"
-              value={patient.family_history || ""}
-              onChange={handleChange}
-              className="form-control"
-              placeholder="Antecedentes familiares"
-            />
-
-            <textarea
-              name="allergy"
-              value={patient.allergy || ""}
-              onChange={handleChange}
-              className="form-control"
-              placeholder="Alergias"
-            />
-
-            <textarea
-              name="common_medicines"
-              value={patient.common_medicines || ""}
-              onChange={handleChange}
-              className="form-control"
-              placeholder="Medicamentos comunes"
-            />
+            {[
+              { name: "personal_history", label: "Antecedentes personales" },
+              { name: "family_history", label: "Antecedentes familiares" },
+              { name: "allergy", label: "Alergias" },
+              { name: "common_medicines", label: "Medicamentos comunes" }
+            ].map(f => (
+              <textarea
+                key={f.name}
+                name={f.name}
+                value={patient[f.name] || ""}
+                onChange={handleChange}
+                className="form-control"
+                placeholder={f.label}
+              />
+            ))}
 
             <select
               name="blood_type"
@@ -152,7 +183,7 @@ export default function DetallePaciente() {
               onChange={handleChange}
               className="form-control"
             >
-              <option value="">Seleccione tipo de sangre</option>
+              <option value="">Tipo de sangre</option>
               {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(bt => (
                 <option key={bt} value={bt}>{bt}</option>
               ))}
@@ -164,7 +195,7 @@ export default function DetallePaciente() {
               onChange={handleChange}
               className="form-control"
             >
-              <option value="">Seleccione género</option>
+              <option value="">Género</option>
               <option value="Masculino">Masculino</option>
               <option value="Femenino">Femenino</option>
               <option value="Otro">Otro</option>
@@ -173,7 +204,7 @@ export default function DetallePaciente() {
 
             <div className="d-flex gap-2">
               <Button onClick={handleSave} variant="success">
-                💾 Guardar cambios
+                Guardar cambios
               </Button>
               <Button variant="outline-secondary" onClick={() => setEditMode(false)}>
                 Cancelar
@@ -189,7 +220,7 @@ export default function DetallePaciente() {
             <p><strong>Tipo de sangre:</strong> {patient.blood_type || "—"}</p>
 
             <Button variant="primary" onClick={() => setEditMode(true)}>
-              ✏️ Editar información
+              Editar información
             </Button>
           </>
         )}
@@ -197,7 +228,7 @@ export default function DetallePaciente() {
         {message && (
           <Alert
             className="mt-3"
-            variant={message.startsWith("✅") ? "success" : "danger"}
+            variant={message.includes("correctamente") ? "success" : "danger"}
           >
             {message}
           </Alert>
@@ -206,7 +237,7 @@ export default function DetallePaciente() {
 
       {/* ================= HOSPITALIZACIONES ================= */}
       <Card className="shadow p-4 mb-4">
-        <h3 className="mb-3">🏥 Historial de Hospitalizaciones</h3>
+        <h3 className="mb-3">Hospitalizaciones</h3>
 
         {hospitalizations.length === 0 ? (
           <p className="text-muted">No existen hospitalizaciones registradas.</p>
@@ -238,7 +269,9 @@ export default function DetallePaciente() {
                     <Button
                       size="sm"
                       variant="outline-info"
-                      onClick={() => navigate(`/medico/hospitalizaciondetalle/${h.admission_id}`)}
+                      onClick={() =>
+                        navigate(`/medico/hospitalizaciondetalle/${h.admission_id}`)
+                      }
                     >
                       Ver detalle
                     </Button>
@@ -250,9 +283,9 @@ export default function DetallePaciente() {
         )}
       </Card>
 
-      {/* ================= HISTORIAS CLÍNICAS ================= */}
+      {/* ================= HISTORIAS ================= */}
       <Card className="shadow p-4 mb-5">
-        <h3 className="mb-3">📋 Historias Clínicas</h3>
+        <h3 className="mb-3">Historias Clínicas</h3>
 
         {encounters.length === 0 ? (
           <p className="text-muted">No hay historias clínicas registradas.</p>
@@ -282,7 +315,9 @@ export default function DetallePaciente() {
                     <Button
                       size="sm"
                       variant="outline-primary"
-                      onClick={() => navigate(`/medico/pacientes/historia/${e.encounter_id}`)}
+                      onClick={() =>
+                        navigate(`/medico/pacientes/historia/${e.encounter_id}`)
+                      }
                     >
                       Ver detalle
                     </Button>

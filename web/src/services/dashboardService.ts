@@ -18,3 +18,12 @@ export async function fetchAppointmentsCountToday() {
   if (!res.ok) throw new Error('Error al obtener el conteo de citas')
   return await res.json() // { count: number }
 }
+
+/**
+ * Obtiene la cantidad de habitaciones disponibles.
+ */
+export async function fetchAvailableRoomsCount() {
+  const res = await fetch(`${API_URL}/dashboard/rooms/available`)
+  if (!res.ok) throw new Error('Error al obtener el conteo de habitaciones')
+  return await res.json() // { count: number }
+}

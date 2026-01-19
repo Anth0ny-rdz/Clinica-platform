@@ -2,11 +2,11 @@
 .rooms-dashboard {
   padding: 15px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #57D7DE;
+  /* background: #72a2a5; */
   width: 100%;
   height: 100%; /* 🔥 Ocupa el 100% del contenedor padre */
   border-radius: 15px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  box-shadow: 0 10px 30px rgba(201, 180, 180, 0.1);
   display: flex;
   flex-direction: column;
   min-height: 400px; /* 🔥 Altura mínima */

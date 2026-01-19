@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../services/supabaseClient";
+import Skeleton from "../skeleton";
 import "./Dashboard.css";
 
 interface DashboardStats {
@@ -21,12 +22,12 @@ export default function DashboardMain() {
 
   const fetchDashboardData = async () => {
     try {
-      // Total Pacientes
+      // Total pacientes
       const { count: totalPacientes } = await supabase
         .from("patients")
         .select("*", { count: "exact", head: true });
 
-      // Rango semana actual
+      // Semana actual
       const startOfWeek = new Date();
       startOfWeek.setHours(0, 0, 0, 0);
       startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
@@ -35,7 +36,7 @@ export default function DashboardMain() {
       endOfWeek.setDate(endOfWeek.getDate() + 6);
       endOfWeek.setHours(23, 59, 59, 999);
 
-      // Citas esta semana
+      // Citas semana
       const { count: citasEstaSemana } = await supabase
         .from("appointments")
         .select("*", { count: "exact", head: true })
@@ -47,7 +48,7 @@ export default function DashboardMain() {
         citasEstaSemana: citasEstaSemana || 0,
       });
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error dashboard:", error);
     } finally {
       setLoading(false);
     }
@@ -62,19 +63,52 @@ export default function DashboardMain() {
     100
   );
 
+  /* =========================
+     SKELETON STATE
+  ========================== */
   if (loading) {
-    return <div className="loading">Cargando dashboard...</div>;
+    return (
+      <div className="dashboard">
+        <div className="stats-container">
+          {[1, 2].map((_, i) => (
+            <div key={i} className="stat-card">
+              <Skeleton height={18} width="70%" />
+              <Skeleton height={14} width="40%" className="mt-1" />
+
+              <div className="mt-3">
+                <Skeleton height={36} width="50%" />
+              </div>
+
+              <div className="mt-3">
+                <Skeleton height={10} />
+              </div>
+
+              <div className="progress-info mt-2">
+                <Skeleton height={12} width="30%" />
+                <Skeleton height={12} width="30%" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
+
+  /* =========================
+     DATA RENDER
+  ========================== */
 
   return (
     <div className="dashboard">
       <div className="stats-container">
-        
-        {/* Tarjeta Pacientes */}
+        {/* TARJETA PACIENTES */}
         <div className="stat-card">
           <h3>Total de pacientes</h3>
           <p>Registrados</p>
-          <div className="number">{stats.totalPacientes.toLocaleString()}</div>
+
+          <div className="number">
+            {stats.totalPacientes.toLocaleString()}
+          </div>
 
           <div className="progress-bar">
             <div
@@ -91,10 +125,11 @@ export default function DashboardMain() {
           <span>Pacientes</span>
         </div>
 
-        {/* Tarjeta Citas */}
+        {/* TARJETA CITAS */}
         <div className="stat-card">
           <h3>Citas médicas agendadas</h3>
           <p>Esta semana</p>
+
           <div className="number">{stats.citasEstaSemana}</div>
 
           <div className="progress-bar">

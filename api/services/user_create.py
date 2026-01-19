@@ -14,7 +14,6 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
 def crear_usuario_real(user: dict):
     try:
         # 🔐 Validación documento
@@ -89,6 +88,36 @@ def crear_usuario_real(user: dict):
 
         return {"message": "Usuario creado correctamente", "auth_id": auth_id}
 
+    except HTTPException as he:
+        # Re-lanzar HTTPException sin modificar
+        raise he
     except Exception as e:
-        print("❌ Error en crear_usuario_real:", e)
-        raise
+        error_str = str(e)
+        print("❌ Error en crear_usuario_real:", error_str)
+        
+        # Detectar errores específicos de Supabase Auth
+        if "A user with this email address has already been registered" in error_str:
+            raise HTTPException(
+                status_code=400,
+                detail="⚠️ El correo electrónico ya está registrado en el sistema."
+            )
+        
+        # Detectar errores de cédula duplicada
+        if "uk_user_profile_id_number" in error_str or ("duplicate key" in error_str and "id_number" in error_str):
+            raise HTTPException(
+                status_code=400,
+                detail="⚠️ Ya existe un usuario registrado con esta cédula."
+            )
+        
+        # Detectar errores de email duplicado en tabla users
+        if "uk_users_email" in error_str or ("duplicate key" in error_str and "email" in error_str):
+            raise HTTPException(
+                status_code=400,
+                detail="⚠️ El correo electrónico ya está registrado."
+            )
+        
+        # Error genérico con detalles
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al crear usuario: {error_str}"
+        )

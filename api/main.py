@@ -809,7 +809,7 @@ def create_doctor_full(data: dict):
             "correo_institucional": data.get("correo_institucional"),
             "horario_atencion": horario_json,
             "firma_digital": data.get("firma_digital"),
-            "direccion": data.get("direccion"),  # ✅ corregido aquí
+            "direccion": data.get("direccion"),
             "created_at": datetime.now().isoformat(),
         }
         doctor_insert = supabase.table("doctors").insert(doctor_data).execute()
@@ -823,8 +823,35 @@ def create_doctor_full(data: dict):
     except HTTPException as he:
         raise he
     except Exception as e:
-        print("❌ Error creando doctor:", str(e))
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        error_str = str(e)
+        print("❌ Error creando doctor:", error_str)
+        
+        # Detectar errores de duplicado de cédula
+        if "uk_user_profile_id_number" in error_str or "duplicate key" in error_str:
+            raise HTTPException(
+                status_code=400, 
+                detail="⚠️ Ya existe un usuario registrado con esta cédula. Por favor, verifique el número de identificación."
+            )
+        
+        # Detectar errores de email duplicado
+        if "uk_users_email" in error_str or "duplicate key" in error_str and "email" in error_str:
+            raise HTTPException(
+                status_code=400,
+                detail="⚠️ El correo electrónico ya está registrado en el sistema."
+            )
+        
+        # Detectar errores de usuario Auth duplicado
+        if "User already registered" in error_str or "already exists" in error_str:
+            raise HTTPException(
+                status_code=400,
+                detail="⚠️ El correo institucional ya está registrado. Use otro correo."
+            )
+        
+        # Error genérico con detalles
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error al crear doctor: {error_str}"
+        )
 
 #18
 @app.get("/specialties")
@@ -3017,3 +3044,23 @@ def get_pending_status(pending_id: str):
             return {"status": "expired"}
 
     return {"status": status}
+
+@app.get("/dashboard/rooms/available")
+def count_available_rooms():
+    """
+    Devuelve la cantidad de habitaciones disponibles.
+    GET /dashboard/rooms/available
+    """
+    try:
+        response = (
+            supabase.table("rooms")
+            .select("room_id", count="exact")
+            .eq("state", "Disponible")
+            .execute()
+        )
+
+        return {"count": response.count or 0}
+
+    except Exception as e:
+        print("❌ Error en /dashboard/rooms/available:", e)
+        raise HTTPException(status_code=500, detail=f"Error al contar habitaciones: {str(e)}")

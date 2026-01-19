@@ -36,18 +36,34 @@ export async function fetchRoles(): Promise<Role[]> {
   return data || []
 }
 
-export async function createUser(newUser: NewUserData) {
-  const response = await fetch('http://127.0.0.1:8000/create_user', {
+export async function createUser(data: NewUserData) {
+  const res = await fetch(`${API_URL}/create_user`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newUser),
+    body: JSON.stringify(data),
   })
-  if (!response.ok) {
-    const errText = await response.text()
-    console.error('❌ Error al crear usuario:', errText)
-    throw new Error(errText)
+  
+  if (!res.ok) {
+    let errorMessage = 'Error al crear usuario'
+    
+    try {
+      const errorData = await res.json()
+      console.log("Error data del backend:", errorData)
+      errorMessage = errorData.detail || errorData.message || errorMessage
+    } catch (parseError) {
+      try {
+        const errorText = await res.text()
+        console.log("Error como texto:", errorText)
+        if (errorText) errorMessage = errorText
+      } catch (textError) {
+        console.log("Tampoco se pudo leer como texto")
+      }
+    }
+    
+    throw new Error(errorMessage)
   }
-  return await response.json()
+  
+  return await res.json()
 }
 
 export async function createPatient(newPatient: NewPatientData) {
