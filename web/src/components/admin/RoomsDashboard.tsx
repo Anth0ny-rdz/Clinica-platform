@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../services/supabaseClient";
-import Skeleton from "../Skeleton";
+import Skeleton from "../skeleton";
 import "./RoomsDashboard.css";
 
 interface Room {
