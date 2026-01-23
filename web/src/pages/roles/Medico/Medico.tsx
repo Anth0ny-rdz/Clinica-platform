@@ -24,7 +24,7 @@ export default function MedicoLayout() {
       <RoleProtectedRoute allowedRoles={['Médico']}>
         <div>
           <HeaderMedico />
-          <main style={{ padding: '2rem' }}>
+          <main style={{ padding: '0' }}>
             <Routes>
               <Route index element={<DashboardMedico />} />
               <Route path="pacientes" element={<Pacientes />} />

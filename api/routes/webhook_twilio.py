@@ -133,8 +133,51 @@ async def webhook_twilio(request: Request):
     # -------------------------
     if acepta:
         try:
-            print("\n🚀 CREANDO USUARIO REAL...")
-            crear_usuario_real(registro["payload"])
+            print("\n🚀 VALIDANDO DATOS ANTES DE CREAR USUARIO...")
+            
+            # VALIDAR EMAIL DUPLICADO
+            payload = registro["payload"]
+            email_existente = supabase.table("users") \
+                .select("userid") \
+                .eq("email", payload["email"]) \
+                .execute()
+
+            if email_existente.data:
+                print("❌ EMAIL YA REGISTRADO - MARCANDO COMO RECHAZADO")
+                supabase.table("pending_users").update({
+                    "status": "rejected",
+                    "responded_at": datetime.utcnow().isoformat()
+                }).eq("id", registro["id"]).execute()
+                
+                print("=" * 70)
+                return {
+                    "ok": True,
+                    "status": "rejected",
+                    "message": "⚠️ El correo electrónico ya está registrado en el sistema."
+                }
+            
+            # VALIDAR DOCUMENTO DUPLICADO
+            doc_existente = supabase.table("user_profile") \
+                .select("user_profile_id") \
+                .eq("id_number", payload["id_number"]) \
+                .execute()
+
+            if doc_existente.data:
+                print("❌ DOCUMENTO YA REGISTRADO - MARCANDO COMO RECHAZADO")
+                supabase.table("pending_users").update({
+                    "status": "rejected",
+                    "responded_at": datetime.utcnow().isoformat()
+                }).eq("id", registro["id"]).execute()
+                
+                print("=" * 70)
+                return {
+                    "ok": True,
+                    "status": "rejected",
+                    "message": "⚠️ El documento ya se encuentra registrado."
+                }
+            
+            print("✅ VALIDACIONES PASADAS - CREANDO USUARIO...")
+            crear_usuario_real(payload)
             print("🎉 USUARIO CREADO CON ÉXITO")
 
             supabase.table("pending_users").update({
@@ -144,6 +187,11 @@ async def webhook_twilio(request: Request):
 
         except Exception as e:
             print("❌ ERROR CREANDO USUARIO:", str(e))
+            # Marcar como rechazado en caso de error
+            supabase.table("pending_users").update({
+                "status": "rejected",
+                "responded_at": datetime.utcnow().isoformat()
+            }).eq("id", registro["id"]).execute()
 
     elif rechaza:
         print("🛑 CONSENTIMIENTO RECHAZADO → SE DETIENE EL FLUJO")
@@ -161,3 +209,6 @@ async def webhook_twilio(request: Request):
     
     else:
         return {"status": "ignored"}
+    
+    print("=" * 70)
+    return {"ok": True, "status": "processed"}

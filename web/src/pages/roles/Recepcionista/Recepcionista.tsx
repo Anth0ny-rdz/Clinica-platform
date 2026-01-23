@@ -14,7 +14,7 @@ export default function RecepcionistaLayout() {
       <RoleProtectedRoute allowedRoles={['Recepcionista / Asistente administrativo']}>
         <div>
           <HeaderAdmin />
-          <main style={{ padding: '2rem' }}>
+          <main style={{ padding: '0' }}>
             <Routes>
               {/* 👇 Pantalla principal por defecto */}
               <Route index element={<DashboardRecepcionista />} />

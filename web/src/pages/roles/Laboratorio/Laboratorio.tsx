@@ -16,7 +16,7 @@ export default function LabLayout() {
       <RoleProtectedRoute allowedRoles={["Laboratorio"]}>
         <div>
         <HeaderLab />
-        <main style={{ padding: "2rem" }}>
+        <main style={{ padding: "0" }}>
           <Routes>
             <Route index element={<DashboardLaboratorio />} />
             <Route path="pendientes" element={<Pendientes />} />

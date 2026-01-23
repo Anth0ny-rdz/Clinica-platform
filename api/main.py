@@ -740,83 +740,267 @@ def create_doctor_full(data: dict):
     """
     try:
         cedula = data["cedula_profesional"]
+        email = data["correo_institucional"]
 
-        # 1️⃣ Validar cédula
+        print(f"📧 Validando email: {email}")
+        print(f"📄 Validando cédula: {cedula}")
+
+        # 1️⃣ VALIDAR CÉDULA
         if not validar_cedula_ecuador(cedula):
             raise HTTPException(status_code=400, detail="❌ Cédula no válida.")
 
-        # 2️⃣ Verificar duplicado
-        existente = supabase.table("doctors").select("cedula_profesional").eq("cedula_profesional", cedula).execute()
-        if existente.data:
-            raise HTTPException(status_code=400, detail="⚠️ Ya existe un doctor con esta cédula profesional.")
+        # 2️⃣ VALIDAR CÉDULA DUPLICADA EN DOCTORS
+        try:
+            existente_doctors = supabase.table("doctors") \
+                .select("cedula_profesional") \
+                .eq("cedula_profesional", cedula) \
+                .execute()
+            
+            print(f"🔍 Cédulas encontradas en doctors: {len(existente_doctors.data)}")
+            
+            if existente_doctors.data:
+                print(f"❌ CÉDULA DUPLICADA EN DOCTORS: {cedula}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="⚠️ Ya existe un doctor con esta cédula profesional."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Error validando cédula en doctors: {e}")
 
-        # 3️⃣ Crear usuario en Auth
-        auth_resp = supabase.auth.admin.create_user({
-            "email": data["correo_institucional"],
-            "password": data["password"],
-            "email_confirm": True
-        })
-        auth_user = auth_resp.user
-        if not auth_user:
-            raise HTTPException(status_code=400, detail="Error creando usuario en Auth")
-        auth_id = auth_user.id
+        # 3️⃣ VALIDAR CÉDULA DUPLICADA EN USER_PROFILE
+        try:
+            existente_profile = supabase.table("user_profile") \
+                .select("user_profile_id") \
+                .eq("id_number", cedula) \
+                .execute()
+            
+            print(f"🔍 Cédulas encontradas en user_profile: {len(existente_profile.data)}")
+            
+            if existente_profile.data:
+                print(f"❌ CÉDULA DUPLICADA EN USER_PROFILE: {cedula}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="⚠️ Ya existe un usuario registrado con esta cédula."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Error validando cédula en user_profile: {e}")
 
-        # 4️⃣ Insertar en users
-        password_hash = bcrypt.hashpw(data["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        user_data = {
-            "username": data["correo_institucional"].split("@")[0],
-            "email": data["correo_institucional"],
-            "password_hash": password_hash,
-            "is_active": True,
-            "is_staff": False,
-            "is_superuser": False,
-        }
-        user_insert = supabase.table("users").insert(user_data).execute()
-        user_id = user_insert.data[0]["userid"]
+        # 4️⃣ VALIDAR EMAIL DUPLICADO EN USERS (case-insensitive)
+        try:
+            email_normalizado = email.lower().strip()
+            
+            existente_users = supabase.table("users") \
+                .select("userid, email") \
+                .ilike("email", email_normalizado) \
+                .execute()
+            
+            print(f"🔍 Emails encontrados en users: {len(existente_users.data)}")
+            if existente_users.data:
+                print(f"📧 Emails encontrados: {existente_users.data}")
+            
+            if existente_users.data:
+                print(f"❌ EMAIL DUPLICADO EN USERS: {email_normalizado}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="⚠️ El correo electrónico ya está registrado en el sistema."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Error validando email en users: {e}")
 
-        # 5️⃣ Crear perfil en user_profile
-        profile_data = {
-            "auth_id": auth_id,
-            "user_id": user_id,
-            "rol_id": 2,
-            "id_number": cedula,
-            "name": data["nombres"],
-            "lastname": data["apellidos"],
-            "telephone": data.get("telefono"),
-            "address": data.get("direccion", "Sin dirección"),
-            "birth_date": data.get("birth_date", "1900-01-01"),
-        }
-        supabase.table("user_profile").insert(profile_data).execute()
+        # 5️⃣ VALIDAR EMAIL EN SUPABASE AUTH
+        try:
+            # Intentar obtener usuario por email
+            from supabase import create_client
+            import os
+            
+            supabase_admin = create_client(
+                os.getenv("SUPABASE_URL"),
+                os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            )
+            
+            # Listar usuarios y buscar el email
+            users_list = supabase_admin.auth.admin.list_users()
+            
+            for auth_user in users_list:
+                if hasattr(auth_user, 'email') and auth_user.email and auth_user.email.lower() == email_normalizado:
+                    print(f"❌ EMAIL DUPLICADO EN AUTH: {email_normalizado}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="⚠️ El correo institucional ya está registrado. Use otro correo."
+                    )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Error validando email en Auth (continuando): {e}")
+            # No bloqueamos por error al consultar Auth
 
-        # 6️⃣ Insertar en doctors
-        horario_json = data.get("horario_atencion")
-        if isinstance(horario_json, str):
+        print("✅ TODAS LAS VALIDACIONES PASADAS")
+
+        # 6️⃣ CREAR USUARIO EN AUTH
+        try:
+            auth_resp = supabase.auth.admin.create_user({
+                "email": email,
+                "password": data["password"],
+                "email_confirm": True
+            })
+            auth_user = auth_resp.user
+            if not auth_user:
+                raise HTTPException(status_code=400, detail="Error creando usuario en Auth")
+            auth_id = auth_user.id
+            print(f"✅ Usuario creado en Auth: {auth_id}")
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Error creando usuario en Auth: {error_msg}")
+            
+            # Detectar errores de email duplicado
+            if "already registered" in error_msg.lower() or "already exists" in error_msg.lower():
+                raise HTTPException(
+                    status_code=400,
+                    detail="⚠️ El correo institucional ya está registrado. Use otro correo."
+                )
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error al crear usuario en Auth: {error_msg}"
+            )
+
+        # 7️⃣ INSERTAR EN USERS
+        try:
+            password_hash = bcrypt.hashpw(data["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            user_data = {
+                "username": email.split("@")[0],
+                "email": email,
+                "password_hash": password_hash,
+                "is_active": True,
+                "is_staff": False,
+                "is_superuser": False,
+            }
+            user_insert = supabase.table("users").insert(user_data).execute()
+            user_id = user_insert.data[0]["userid"]
+            print(f"✅ Usuario creado en users: {user_id}")
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Error insertando en users: {error_msg}")
+            
+            # Rollback: Eliminar usuario de Auth
             try:
-                horario_json = json.loads(horario_json)
-            except json.JSONDecodeError:
-                horario_json = {}
+                supabase.auth.admin.delete_user(auth_id)
+                print(f"🔄 Rollback: Usuario eliminado de Auth")
+            except:
+                pass
+            
+            if "uk_users_email" in error_msg or "duplicate key" in error_msg:
+                raise HTTPException(
+                    status_code=400,
+                    detail="⚠️ El correo electrónico ya está registrado en el sistema."
+                )
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error al crear usuario: {error_msg}"
+            )
 
-        doctor_data = {
-            "user_id": user_id,
-            "cedula_profesional": cedula,
-            "nombres": data["nombres"],
-            "apellidos": data["apellidos"],
-            "especialidad_id": data.get("especialidad_id"),
-            "subespecialidad": data.get("subespecialidad"),
-            "titulo_academico": data.get("titulo_academico"),
-            "experiencia_anios": data.get("experiencia_anios"),
-            "telefono": data.get("telefono"),
-            "correo_institucional": data.get("correo_institucional"),
-            "horario_atencion": horario_json,
-            "firma_digital": data.get("firma_digital"),
-            "direccion": data.get("direccion"),
-            "created_at": datetime.now().isoformat(),
-        }
-        doctor_insert = supabase.table("doctors").insert(doctor_data).execute()
+        # 8️⃣ CREAR PERFIL EN USER_PROFILE
+        try:
+            profile_data = {
+                "auth_id": auth_id,
+                "user_id": user_id,
+                "rol_id": 2,  # Rol médico
+                "id_number": cedula,
+                "name": data["nombres"],
+                "lastname": data["apellidos"],
+                "telephone": data.get("telefono"),
+                "address": data.get("direccion", "Sin dirección"),
+                "birth_date": data.get("birth_date", "1900-01-01"),
+            }
+            supabase.table("user_profile").insert(profile_data).execute()
+            print(f"✅ Perfil creado en user_profile")
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Error insertando en user_profile: {error_msg}")
+            
+            # Rollback: Eliminar usuario de Auth y users
+            try:
+                supabase.auth.admin.delete_user(auth_id)
+                supabase.table("users").delete().eq("userid", user_id).execute()
+                print(f"🔄 Rollback: Usuario eliminado de Auth y users")
+            except:
+                pass
+            
+            if "uk_user_profile_id_number" in error_msg or "duplicate key" in error_msg:
+                raise HTTPException(
+                    status_code=400,
+                    detail="⚠️ Ya existe un usuario registrado con esta cédula."
+                )
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error al crear perfil: {error_msg}"
+            )
 
+        # 9️⃣ INSERTAR EN DOCTORS
+        try:
+            horario_json = data.get("horario_atencion")
+            if isinstance(horario_json, str):
+                try:
+                    horario_json = json.loads(horario_json)
+                except json.JSONDecodeError:
+                    horario_json = {}
+
+            doctor_data = {
+                "user_id": user_id,
+                "cedula_profesional": cedula,
+                "nombres": data["nombres"],
+                "apellidos": data["apellidos"],
+                "especialidad_id": data.get("especialidad_id"),
+                "subespecialidad": data.get("subespecialidad"),
+                "titulo_academico": data.get("titulo_academico"),
+                "experiencia_anios": data.get("experiencia_anios"),
+                "telefono": data.get("telefono"),
+                "correo_institucional": email,
+                "horario_atencion": horario_json,
+                "firma_digital": data.get("firma_digital"),
+                "direccion": data.get("direccion"),
+                "created_at": datetime.now().isoformat(),
+            }
+            doctor_insert = supabase.table("doctors").insert(doctor_data).execute()
+            doctor_id = doctor_insert.data[0]["doctors_id"]
+            print(f"✅ Doctor creado en doctors: {doctor_id}")
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Error insertando en doctors: {error_msg}")
+            
+            # Rollback completo
+            try:
+                supabase.auth.admin.delete_user(auth_id)
+                supabase.table("user_profile").delete().eq("user_id", user_id).execute()
+                supabase.table("users").delete().eq("userid", user_id).execute()
+                print(f"🔄 Rollback completo: Usuario eliminado de Auth, users y user_profile")
+            except:
+                pass
+            
+            if "duplicate key" in error_msg and "cedula_profesional" in error_msg:
+                raise HTTPException(
+                    status_code=400,
+                    detail="⚠️ Ya existe un doctor con esta cédula profesional."
+                )
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error al crear doctor: {error_msg}"
+            )
+
+        print("🎉 DOCTOR CREADO EXITOSAMENTE")
+        
         return {
             "message": "✅ Doctor creado correctamente",
-            "doctor_id": doctor_insert.data[0]["doctors_id"],
+            "doctor_id": doctor_id,
             "user_id": user_id
         }
 
@@ -824,35 +1008,12 @@ def create_doctor_full(data: dict):
         raise he
     except Exception as e:
         error_str = str(e)
-        print("❌ Error creando doctor:", error_str)
+        print(f"❌ ERROR GENERAL: {error_str}")
         
-        # Detectar errores de duplicado de cédula
-        if "uk_user_profile_id_number" in error_str or "duplicate key" in error_str:
-            raise HTTPException(
-                status_code=400, 
-                detail="⚠️ Ya existe un usuario registrado con esta cédula. Por favor, verifique el número de identificación."
-            )
-        
-        # Detectar errores de email duplicado
-        if "uk_users_email" in error_str or "duplicate key" in error_str and "email" in error_str:
-            raise HTTPException(
-                status_code=400,
-                detail="⚠️ El correo electrónico ya está registrado en el sistema."
-            )
-        
-        # Detectar errores de usuario Auth duplicado
-        if "User already registered" in error_str or "already exists" in error_str:
-            raise HTTPException(
-                status_code=400,
-                detail="⚠️ El correo institucional ya está registrado. Use otro correo."
-            )
-        
-        # Error genérico con detalles
         raise HTTPException(
             status_code=500, 
-            detail=f"Error al crear doctor: {error_str}"
+            detail=f"Error inesperado al crear doctor: {error_str}"
         )
-
 #18
 @app.get("/specialties")
 def get_specialties():
@@ -2937,76 +3098,185 @@ def ai_analyze_draft(data: dict):
 def create_user_request(user: UserCreate):
     print("📦 SUPABASE URL (create_user_request):", SUPABASE_URL)
     print("🧪 consentimiento_tipo recibido:", user.consentimiento_tipo)
+    print(f"📧 Validando email: {user.email}")
+    print(f"📄 Validando documento: {user.id_number}")
 
     # 1️⃣ VALIDACIÓN DOCUMENTO
     validar_documento(user.tipo_documento, user.id_number)
 
-    # 2️⃣ VALIDAR DUPLICADOS
-    doc_existente = supabase.table("user_profile") \
-        .select("user_profile_id") \
-        .eq("id_number", user.id_number) \
-        .execute()
+    # 2️⃣ VALIDAR DOCUMENTO DUPLICADO EN user_profile
+    try:
+        doc_existente = supabase.table("user_profile") \
+            .select("user_profile_id") \
+            .eq("id_number", user.id_number) \
+            .execute()
 
-    if doc_existente.data:
+        print(f"🔍 Documentos encontrados en user_profile: {len(doc_existente.data)}")
+        
+        if doc_existente.data:
+            print(f"❌ DOCUMENTO DUPLICADO ENCONTRADO: {user.id_number}")
+            raise HTTPException(
+                status_code=400,
+                detail="⚠️ El documento ya se encuentra registrado."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️ Error validando documento: {e}")
         raise HTTPException(
-            status_code=400,
-            detail="⚠️ El documento ya se encuentra registrado."
+            status_code=500,
+            detail="Error al validar documento en el sistema."
         )
 
-    email_existente = supabase.table("users") \
-        .select("userid") \
-        .eq("email", user.email) \
-        .execute()
+    # 3️⃣ VALIDAR EMAIL DUPLICADO EN users (case-insensitive)
+    try:
+        # Normalizar email a minúsculas
+        email_normalizado = user.email.lower().strip()
+        
+        email_existente = supabase.table("users") \
+            .select("userid, email") \
+            .ilike("email", email_normalizado) \
+            .execute()
 
-    if email_existente.data:
+        print(f"🔍 Emails encontrados en users: {len(email_existente.data)}")
+        if email_existente.data:
+            print(f"📧 Emails encontrados: {email_existente.data}")
+        
+        if email_existente.data:
+            print(f"❌ EMAIL DUPLICADO ENCONTRADO: {email_normalizado}")
+            raise HTTPException(
+                status_code=400,
+                detail="⚠️ El correo electrónico ya se encuentra registrado."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️ Error validando email: {e}")
         raise HTTPException(
-            status_code=400,
-            detail="⚠️ El correo electrónico ya se encuentra registrado."
+            status_code=500,
+            detail="Error al validar email en el sistema."
         )
 
-    # 3️⃣ CONSENTIMIENTO FÍSICO → SE TERMINA AQUÍ
+    # 4️⃣ VALIDAR PENDING_USERS ACTIVOS (evitar múltiples solicitudes simultáneas)
+    try:
+        telefono_temp = normalizar_telefono_ec(user.telephone)
+        
+        pending_activos = supabase.table("pending_users") \
+            .select("id, phone, payload") \
+            .eq("phone", telefono_temp) \
+            .eq("status", "pending") \
+            .execute()
+
+        print(f"🔍 Pending activos para teléfono {telefono_temp}: {len(pending_activos.data)}")
+        
+        if pending_activos.data:
+            # Verificar si alguno tiene el mismo email o documento
+            for pending in pending_activos.data:
+                payload = pending.get("payload", {})
+                
+                if payload.get("email", "").lower() == email_normalizado:
+                    print(f"❌ PENDING ACTIVO CON MISMO EMAIL")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="⚠️ Ya existe una solicitud pendiente con este correo electrónico. Espere a que el paciente responda."
+                    )
+                
+                if payload.get("id_number") == user.id_number:
+                    print(f"❌ PENDING ACTIVO CON MISMO DOCUMENTO")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="⚠️ Ya existe una solicitud pendiente con este documento. Espere a que el paciente responda."
+                    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️ Error validando pending_users: {e}")
+        # No bloqueamos por error en pending_users, solo logueamos
+
+    print("✅ TODAS LAS VALIDACIONES PASADAS")
+
+    # 5️⃣ CONSENTIMIENTO FÍSICO → SE TERMINA AQUÍ
     if user.consentimiento_tipo == "fisico":
         print("🖊️ CONSENTIMIENTO FÍSICO - CREANDO USUARIO")
-        user_id = crear_usuario_real(user.dict())
-        return {
-            "message": "Consentimiento físico registrado.",
-            "status": "accepted",
-            "user_id": user_id
-        }
+        try:
+            user_id = crear_usuario_real(user.dict())
+            print(f"✅ Usuario creado con ID: {user_id}")
+            return {
+                "message": "Consentimiento físico registrado.",
+                "status": "accepted",
+                "user_id": user_id
+            }
+        except Exception as e:
+            print(f"❌ Error creando usuario físico: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Error al crear usuario: {str(e)}"
+            )
 
     # 🔽 🔽 TODO LO DE ABAJO ES SOLO DIGITAL 🔽 🔽
 
-    # 4️⃣ NORMALIZAR TELÉFONO
+    # 6️⃣ NORMALIZAR TELÉFONO
     telefono = normalizar_telefono_ec(user.telephone)
+    print(f"📞 Teléfono normalizado: {telefono}")
 
-    # 5️⃣ EXPIRAR PENDINGS ANTERIORES
-    supabase.table("pending_users").update({
-        "status": "expired"
-    }).eq("phone", telefono).eq("status", "pending").execute()
+    # 7️⃣ EXPIRAR PENDINGS ANTERIORES DEL MISMO TELÉFONO
+    try:
+        expired_result = supabase.table("pending_users").update({
+            "status": "expired"
+        }).eq("phone", telefono).eq("status", "pending").execute()
+        
+        print(f"⏰ Pendings expirados: {len(expired_result.data) if expired_result.data else 0}")
+    except Exception as e:
+        print(f"⚠️ Error expirando pendings anteriores: {e}")
 
     expires_at = datetime.utcnow() + timedelta(minutes=3)
 
-    # 6️⃣ CREAR PENDING DIGITAL
-    pending = supabase.table("pending_users").insert({
-        "phone": telefono,
-        "payload": user.dict(),
-        "status": "pending",
-        "consentimiento_tipo": "digital",
-        "expires_at": expires_at.isoformat()
-    }).execute()
+    # 8️⃣ CREAR PENDING DIGITAL
+    try:
+        pending = supabase.table("pending_users").insert({
+            "phone": telefono,
+            "payload": user.dict(),
+            "status": "pending",
+            "consentimiento_tipo": "digital",
+            "expires_at": expires_at.isoformat()
+        }).execute()
 
-    pending_id = pending.data[0]["id"]
-
-    # 7️⃣ ENVIAR WHATSAPP
-    enviado = enviar_consentimiento_simple(
-        numero=telefono,
-        pending_id=pending_id
-    )
-
-    if not enviado:
+        pending_id = pending.data[0]["id"]
+        print(f"📝 Pending creado con ID: {pending_id}")
+    except Exception as e:
+        print(f"❌ Error creando pending: {e}")
         raise HTTPException(
             status_code=500,
-            detail="No se pudo enviar WhatsApp"
+            detail="Error al crear solicitud pendiente."
+        )
+
+    # 9️⃣ ENVIAR WHATSAPP
+    try:
+        enviado = enviar_consentimiento_simple(
+            numero=telefono,
+            pending_id=pending_id
+        )
+
+        if not enviado:
+            print("❌ No se pudo enviar WhatsApp")
+            # Marcar pending como fallido
+            supabase.table("pending_users").update({
+                "status": "expired"
+            }).eq("id", pending_id).execute()
+            
+            raise HTTPException(
+                status_code=500,
+                detail="No se pudo enviar el mensaje de WhatsApp"
+            )
+        
+        print("✅ WhatsApp enviado exitosamente")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error enviando WhatsApp: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al enviar WhatsApp: {str(e)}"
         )
 
     return {

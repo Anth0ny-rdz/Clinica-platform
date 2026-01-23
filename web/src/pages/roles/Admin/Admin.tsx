@@ -15,7 +15,7 @@ export default function AdminLayout() {
       <RoleProtectedRoute allowedRoles={['Administrador']}>
         <div>
           <HeaderAdmin />
-          <main style={{ padding: '2rem' }}>
+          <main style={{ padding: '0' }}>
             <Routes>
               <Route index element={<Dashboard/>} />
               <Route path="dashboard" element={<Dashboard />} />

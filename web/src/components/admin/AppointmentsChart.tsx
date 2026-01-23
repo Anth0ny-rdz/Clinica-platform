@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../services/supabaseClient";
-import Skeleton from "../Skeleton";
+import Skeleton from "../skeleton";
 import "./AppointmentsChart.css";
 
 interface MonthData {
