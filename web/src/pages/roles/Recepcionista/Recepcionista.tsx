@@ -16,7 +16,6 @@ export default function RecepcionistaLayout() {
           <HeaderAdmin />
           <main style={{ padding: '0' }}>
             <Routes>
-              {/* 👇 Pantalla principal por defecto */}
               <Route index element={<DashboardRecepcionista />} />
               
               <Route path="usuarios" element={<Usuarios />} />

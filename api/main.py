@@ -3300,13 +3300,11 @@ def get_pending_status(pending_id: str):
     status = res.data["status"]
     expires_at = res.data["expires_at"]
 
-    # ⏱️ VERIFICAR EXPIRACIÓN
     if status == "pending" and expires_at:
         ahora = datetime.now(timezone.utc)
         expira = datetime.fromisoformat(expires_at)
 
         if ahora > expira:
-            # marcar como expirado
             supabase.table("pending_users").update({
                 "status": "expired"
             }).eq("id", pending_id).execute()
