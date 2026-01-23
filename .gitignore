@@ -1,1 +1,19 @@
+# Node modules
+node_modules/
 
+# Build outputs
+dist/
+build/
+
+# Environment files
+*.env
+/web/.env
+
+# Logs
+*.log
+
+# IDE and system files
+.vscode/
+.DS_Store
+
+api/scripts/

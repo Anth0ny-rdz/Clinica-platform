@@ -1,0 +1,88 @@
+.dashboard {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.dashboard h1 {
+  color: #333;
+  margin-bottom: 30px;
+}
+
+.stats-container {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  border-left: 4px solid #007bff;
+  min-width: 250px;
+}
+
+.stat-card h3 {
+  margin: 0;
+  color: #555;
+  font-size: 16px;
+}
+
+.stat-card p {
+  margin: 5px 0;
+  color: #888;
+  font-size: 14px;
+}
+
+.stat-card .number {
+  font-size: 32px;
+  font-weight: bold;
+  color: #333;
+  margin: 10px 0 5px 0;
+}
+
+.stat-card span {
+  color: #666;
+  font-size: 14px;
+}
+/* Barras de progreso */
+.progress-bar {
+  background: #e0e0e0;
+  border-radius: 10px;
+  height: 8px;
+  margin: 10px 0;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+/* Color para pacientes */
+.progress-fill.pacientes {
+  background: linear-gradient(90deg, #007bff, #0056b3);
+}
+
+/* Color para citas */
+.progress-fill.citas {
+  background: linear-gradient(90deg, #28a745, #1e7e34);
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+}
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  font-size: 18px;
+  color: #666;
+}
