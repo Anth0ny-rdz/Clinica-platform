@@ -110,33 +110,57 @@ class TestPatientEndpoints:
 
 @pytest.mark.api
 class TestEncounterEndpoints:
-    """Tests para endpoints de historias médicas"""
-    
+    """Tests para endpoints de historias médicas"""  
+    from unittest.mock import patch, MagicMock
+
+    from unittest.mock import patch, MagicMock
+
     def test_create_encounter_success(self, client, valid_encounter_data):
         """Debe crear historia médica exitosamente"""
+
         with patch("main.supabase") as mock_sb, \
-             patch("ai.embedding.create_embedding") as mock_embed, \
-             patch("ai.embedding.build_embedding_text") as mock_build:
-            
-            # Configurar mocks
+            patch("main.create_embedding") as mock_embed, \
+            patch("main.build_embedding_text") as mock_build:
+
+            # 🔹 Embedding mocks
             mock_build.return_value = "Texto de embedding suficientemente largo para pasar validación"
             mock_embed.return_value = [0.1] * 1536
-            
-            # Mock para insert de encounter
-            mock_sb.table.return_value.insert.return_value.execute.return_value = MagicMock(
-                data=[{"encounter_id": 1, **valid_encounter_data}]
+
+            # 🔹 Mocks por tabla
+            mock_vitals_table = MagicMock()
+            mock_encounter_table = MagicMock()
+
+            # vital_signs insert
+            mock_vitals_table.insert.return_value.execute.return_value = (
+                MagicMock(data=[{"vital_sign_id": 10}])
             )
-            
-            # Mock para update de embedding
-            mock_sb.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(
-                data=[{"encounter_id": 1}]
+
+            # encounters insert
+            mock_encounter_table.insert.return_value.execute.return_value = (
+                MagicMock(data=[{"encounter_id": 1}])
             )
-            
+
+            # encounters update (embedding)
+            mock_encounter_table.update.return_value.eq.return_value.execute.return_value = (
+                MagicMock(data=[{"encounter_id": 1}])
+            )
+
+            def table_side_effect(table_name):
+                if table_name == "vital_signs":
+                    return mock_vitals_table
+                if table_name == "encounters":
+                    return mock_encounter_table
+                return MagicMock()
+
+            mock_sb.table.side_effect = table_side_effect
+
             response = client.post("/encounters", json=valid_encounter_data)
-            
+
             assert response.status_code == 200
-            # Verificar que se llamó create_embedding
             mock_embed.assert_called_once()
+            mock_build.assert_called_once()
+
+
     
     def test_create_encounter_with_vital_signs(self, client, valid_encounter_data):
         """Debe crear historia médica con signos vitales"""
@@ -227,36 +251,49 @@ class TestUserCreationEndpoints:
                 data = response.json()
                 assert data.get("status") == "accepted" or "user_id" in data
     
+    from unittest.mock import patch, MagicMock
+
     def test_create_user_duplicate_email(self, client, valid_user_data):
         """Debe rechazar creación con email duplicado"""
+
         with patch("main.supabase") as mock_sb, \
-             patch("utils.validaciones.validar_documento"):
-            
-            # Mock para documento no existente
+            patch("utils.validaciones.validar_cedula_ecuador", return_value=True):
+
+            # 1️⃣ Documento NO existe
+            # 2️⃣ Email SÍ existe
             mock_sb.table.return_value.select.return_value.eq.return_value.execute.side_effect = [
-                MagicMock(data=[]),  # Doc no existe
-                MagicMock(data=[{"userid": 1}])  # Email existe
+                MagicMock(data=[]),                 # documento no existe
+                MagicMock(data=[{"user_id": 1}])    # email existe
             ]
-            
-            response = client.post("/create_user_request", json=valid_user_data)
-            
+
+            response = client.post(
+                "/create_user_request",
+                json=valid_user_data
+            )
+
             assert response.status_code == 400
             assert "correo" in response.json()["detail"].lower()
-    
+
+
     def test_create_user_duplicate_document(self, client, valid_user_data):
         """Debe rechazar creación con documento duplicado"""
+
         with patch("main.supabase") as mock_sb, \
-             patch("utils.validaciones.validar_documento"):
-            
-            # Mock para documento existente
-            mock_sb.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(
-                data=[{"user_profile_id": 1}]
+            patch("utils.validaciones.validar_cedula_ecuador", return_value=True):
+
+            # Documento YA existe → debe cortar aquí
+            mock_sb.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+                MagicMock(data=[{"user_profile_id": 1}])
             )
-            
-            response = client.post("/create_user_request", json=valid_user_data)
-            
+
+            response = client.post(
+                "/create_user_request",
+                json=valid_user_data
+            )
+
             assert response.status_code == 400
             assert "documento" in response.json()["detail"].lower()
+
 
 
 @pytest.mark.api
