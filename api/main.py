@@ -72,7 +72,7 @@ def validar_cedula_ecuador(cedula: str) -> bool:
 # 📦 Modelo del usuario
 class UserCreate(BaseModel):
     tipo_documento: Literal["cedula", "pasaporte"]
-    id_number: Annotated[str, Field(min_length=10, max_length=10)]
+    id_number: str
     name: Annotated[str, Field(min_length=2)]
     lastname: Annotated[str, Field(min_length=2)]
     email: EmailStr
