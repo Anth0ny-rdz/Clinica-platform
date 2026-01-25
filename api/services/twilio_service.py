@@ -12,14 +12,15 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
 
-WHATSAPP_NUMBER = "+18046043610"
+WHATSAPP_NUMBER = TWILIO_WHATSAPP_NUMBER
 ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
 client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
-TWILIO_WHATSAPP = "whatsapp:+18046043610"  # tu WA Business o sandbox
+#TWILIO_WHATSAPP = "whatsapp:+18046043610"  # tu WA Business o sandbox
 
 def send_reservation_whatsapp(patient_phone: str, variables: dict):
     """
@@ -27,7 +28,7 @@ def send_reservation_whatsapp(patient_phone: str, variables: dict):
     """
     try:
         mes = client.messages.create(
-            from_=TWILIO_WHATSAPP,
+            from_=f"whatsapp:{TWILIO_WHATSAPP_NUMBER}",
             to=f"whatsapp:{patient_phone}",
             content_sid="HXb98da9382b0e103519670139d347e992",
             content_variables=json.dumps(variables)
@@ -46,7 +47,7 @@ def send_lab_result_whatsapp(patient_phone: str, variables: dict):
     """
     try:
         mes = client.messages.create(
-            from_=TWILIO_WHATSAPP,
+            from_=f"whatsapp:{TWILIO_WHATSAPP_NUMBER}",
             to=f"whatsapp:{patient_phone}",
             content_sid="HX71fba67b24932c8e6aa92088acc52166",  # 👉 agrega aquí tu Content SID de plantilla
             content_variables=json.dumps(variables)

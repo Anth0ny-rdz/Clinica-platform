@@ -3,6 +3,8 @@ from datetime import datetime
 from supabase import create_client
 import os
 from utils.phone import normalizar_telefono_ec
+from twilio.rest import Client
+
 
 from services.user_create import crear_usuario_real
 
@@ -13,12 +15,39 @@ from services.user_create import crear_usuario_real
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+
+TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
 router = APIRouter(
     prefix="/webhook",
     tags=["Twilio"]
 )
+
+def enviar_mensaje_whatsapp(telefono: str, mensaje: str):
+    """Envía mensaje de WhatsApp usando Twilio"""
+    try:
+        # Asegurar que el número tenga el formato correcto
+        # Si ya viene con whatsapp:, usarlo tal cual, sino agregarlo
+        numero_destino = telefono if telefono.startswith('whatsapp:') else f'whatsapp:{telefono}'
+        
+        mensaje_enviado = twilio_client.messages.create(
+            from_=f'whatsapp:{TWILIO_WHATSAPP_NUMBER}',
+            body=mensaje,
+            to=numero_destino
+        )
+        print(f"📤 MENSAJE ENVIADO: {mensaje_enviado.sid}")
+        print(f"   Destino: {numero_destino}")
+        print(f"   Contenido: {mensaje[:100]}...")
+        return True
+    except Exception as e:
+        print(f"❌ ERROR AL ENVIAR MENSAJE: {e}")
+        return False
 
 # =========================
 # WEBHOOK TWILIO
@@ -149,6 +178,12 @@ async def webhook_twilio(request: Request):
                     "responded_at": datetime.utcnow().isoformat()
                 }).eq("id", registro["id"]).execute()
                 
+                # 📤 ENVIAR MENSAJE DE ERROR
+                enviar_mensaje_whatsapp(
+                    remitente,
+                    "⚠️ Lo sentimos, el correo electrónico que proporcionó ya está registrado en nuestro sistema. Por favor contacte a recepción para más información."
+                )
+                
                 print("=" * 70)
                 return {
                     "ok": True,
@@ -169,6 +204,12 @@ async def webhook_twilio(request: Request):
                     "responded_at": datetime.utcnow().isoformat()
                 }).eq("id", registro["id"]).execute()
                 
+                # 📤 ENVIAR MENSAJE DE ERROR
+                enviar_mensaje_whatsapp(
+                    remitente,
+                    "⚠️ Lo sentimos, el documento de identidad que proporcionó ya se encuentra registrado. Por favor contacte a recepción para más información."
+                )
+                
                 print("=" * 70)
                 return {
                     "ok": True,
@@ -184,14 +225,27 @@ async def webhook_twilio(request: Request):
                 "status": "accepted",
                 "responded_at": datetime.utcnow().isoformat()
             }).eq("id", registro["id"]).execute()
+            
+            # 📤 ENVIAR MENSAJE DE CONFIRMACIÓN EXITOSA
+            enviar_mensaje_whatsapp(
+                remitente,
+                f"¡Gracias por confiar en Clínica Latacunga! ✅\n\nSu usuario ha sido creado exitosamente."
+            )
 
         except Exception as e:
             print("❌ ERROR CREANDO USUARIO:", str(e))
+            
             # Marcar como rechazado en caso de error
             supabase.table("pending_users").update({
                 "status": "rejected",
                 "responded_at": datetime.utcnow().isoformat()
             }).eq("id", registro["id"]).execute()
+            
+            # 📤 ENVIAR MENSAJE DE ERROR TÉCNICO
+            enviar_mensaje_whatsapp(
+                remitente,
+                "❌ Lo sentimos, ocurrió un error al crear su usuario. Por favor contacte a recepción o intente nuevamente más tarde."
+            )
 
     elif rechaza:
         print("🛑 CONSENTIMIENTO RECHAZADO → SE DETIENE EL FLUJO")
@@ -200,6 +254,12 @@ async def webhook_twilio(request: Request):
             "status": "rejected",
             "responded_at": datetime.utcnow().isoformat()
         }).eq("id", registro["id"]).execute()
+        
+        # 📤 ENVIAR MENSAJE DE RECHAZO
+        enviar_mensaje_whatsapp(
+            remitente,
+            "Entendemos su decisión. Sin su consentimiento no podemos proceder con la creación de su usuario."
+        )
 
         return {
             "ok": True,
