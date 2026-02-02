@@ -20,7 +20,6 @@ AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
 client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
-#TWILIO_WHATSAPP = "whatsapp:+18046043610"  # tu WA Business o sandbox
 
 def send_reservation_whatsapp(patient_phone: str, variables: dict):
     """

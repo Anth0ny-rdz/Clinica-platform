@@ -39,10 +39,11 @@ class TestValidarCedula:
         "123-456-789",
         None
     ])
+
     def test_cedulas_invalidas_parametrizadas(self, cedula_invalida):
         """Debe rechazar varios formatos inválidos de cédula"""
         if cedula_invalida is None:
-            with pytest.raises(AttributeError):
+            with pytest.raises(TypeError):  
                 validar_cedula_ecuador(cedula_invalida)
         else:
             assert validar_cedula_ecuador(cedula_invalida) is False
