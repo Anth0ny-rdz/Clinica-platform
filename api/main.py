@@ -13,6 +13,8 @@ from services.user_create import crear_usuario_real
 from services.twilio_service import enviar_consentimiento_simple
 from utils.validaciones import validar_documento
 from utils.phone import normalizar_telefono_ec
+import time
+import logging
 
 from routes.webhook_twilio import router as webhook_router
 
@@ -24,6 +26,7 @@ import json
 
 from fastapi.responses import JSONResponse
 
+logger = logging.getLogger("api")
 
 load_dotenv()
 
@@ -1044,16 +1047,42 @@ def get_doctors_by_specialty(especialidad_id: int):
         print("❌ Error obteniendo doctores por especialidad:", str(e))
         raise HTTPException(status_code=500, detail="Error al obtener doctores por especialidad")
 
+def _exec_with_retry(fn, retries: int = 2, base_delay: float = 0.2):
+    """
+    Retry corto para fallos transitorios de red con Supabase:
+    - 'Server disconnected'
+    - timeouts / connection reset
+    """
+    last_exc = None
+    for i in range(retries + 1):
+        try:
+            return fn()
+        except Exception as e:
+            last_exc = e
+            msg = str(e).lower()
+            transient = (
+                "server disconnected" in msg
+                or "timeout" in msg
+                or "timed out" in msg
+                or "connection" in msg
+                or "reset" in msg
+            )
+            if transient and i < retries:
+                time.sleep(base_delay * (2 ** i))  # backoff: 0.2s, 0.4s...
+                continue
+            raise
+    raise last_exc
+
 #20
 @app.get("/patients/{patient_id}/encounters")
 def get_encounters_by_patient(patient_id: int):
     """
-    Devuelve todas las historias médicas (encounters) de un paciente específico,
-    incluyendo datos del médico (doctors + specialties) y signos vitales.
+    Devuelve historias médicas (encounters) de un paciente,
+    enriquecidas con médico, especialidad y signos vitales.
     """
     try:
-        # 1️⃣ Obtener encounters
-        res = (
+        # 1) encounters
+        res = _exec_with_retry(lambda: (
             supabase.table("encounters")
             .select("""
                 encounter_id,
@@ -1075,68 +1104,81 @@ def get_encounters_by_patient(patient_id: int):
             .eq("patient_id", patient_id)
             .order("date", desc=True)
             .execute()
-        )
+        ))
 
         encounters = res.data or []
-
         if not encounters:
             return []
 
-        # 2️⃣ Obtener doctores asociados
-        doctor_ids = list({e.get("doctor_id") for e in encounters if e.get("doctor_id")})
+        # 2) doctores (deduplicados)
+        doctor_ids = sorted({e.get("doctor_id") for e in encounters if e.get("doctor_id")})
+        doctor_dict = {}
 
-        doctors = []
         if doctor_ids:
-            dr_res = (
+            dr_res = _exec_with_retry(lambda: (
                 supabase.table("doctors")
                 .select("doctors_id, nombres, apellidos, especialidad_id, subespecialidad")
                 .in_("doctors_id", doctor_ids)
                 .execute()
-            )
+            ))
             doctors = dr_res.data or []
+            doctor_dict = {d.get("doctors_id"): d for d in doctors if d.get("doctors_id")}
 
-        doctor_dict = {d["doctors_id"]: d for d in doctors}
+        # 3) especialidades (deduplicadas)
+        specialty_ids = sorted({
+            d.get("especialidad_id")
+            for d in doctor_dict.values()
+            if d.get("especialidad_id")
+        })
 
-        # 3️⃣ Obtener especialidades
-        specialty_ids = [d["especialidad_id"] for d in doctors if d.get("especialidad_id")]
-
-        specialties = []
+        specialty_dict = {}
         if specialty_ids:
-            sp_res = (
+            sp_res = _exec_with_retry(lambda: (
                 supabase.table("specialties")
                 .select("especialidad_id, name")
                 .in_("especialidad_id", specialty_ids)
                 .execute()
-            )
+            ))
             specialties = sp_res.data or []
+            specialty_dict = {
+                s.get("especialidad_id"): s.get("name", "—")
+                for s in specialties
+                if s.get("especialidad_id")
+            }
 
-        specialty_dict = {s["especialidad_id"]: s["name"] for s in specialties}
+        # 4) signos vitales (deduplicados)
+        vital_ids = sorted({e.get("vital_sign_id") for e in encounters if e.get("vital_sign_id")})
+        vital_dict = {}
 
-        # 4️⃣ Obtener signos vitales
-        vital_ids = [e["vital_sign_id"] for e in encounters if e.get("vital_sign_id")]
-
-        vitals = []
         if vital_ids:
-            vt_res = (
+            vt_res = _exec_with_retry(lambda: (
                 supabase.table("signus_vitalis")
                 .select("vital_sign_id, presion_arterial, pulso_xmin, temperatura, fecha")
                 .in_("vital_sign_id", vital_ids)
                 .execute()
-            )
+            ))
             vitals = vt_res.data or []
+            vital_dict = {
+                v.get("vital_sign_id"): v
+                for v in vitals
+                if v.get("vital_sign_id")
+            }
 
-        vital_dict = {v["vital_sign_id"]: v for v in vitals}
-
-        # 5️⃣ Construir respuesta
+        # 5) construir respuesta
         full_data = []
         for e in encounters:
-            doc = doctor_dict.get(e.get("doctor_id"), {})
-            vit = vital_dict.get(e.get("vital_sign_id"), {})
+            doc = doctor_dict.get(e.get("doctor_id")) or {}
+            vit = vital_dict.get(e.get("vital_sign_id")) or {}
 
             especialidad_nombre = specialty_dict.get(doc.get("especialidad_id"), "—")
 
+            doctor_name = (
+                f"{doc.get('nombres','').strip()} {doc.get('apellidos','').strip()}".strip()
+                if doc else ""
+            ) or "(Médico no asignado)"
+
             full_data.append({
-                "encounter_id": e["encounter_id"],
+                "encounter_id": e.get("encounter_id"),
                 "date": e.get("date"),
                 "hour": e.get("hour"),
                 "reason_for_consultation": e.get("reason_for_consultation"),
@@ -1149,9 +1191,9 @@ def get_encounters_by_patient(patient_id: int):
                 "observations": e.get("observations"),
                 "fecha_para_control": e.get("fecha_para_control"),
 
-                "doctor_name": f"{doc.get('nombres','(Médico no asignado)')} {doc.get('apellidos','')}".strip(),
+                "doctor_name": doctor_name,
                 "especialidad": especialidad_nombre,
-                "subespecialidad": doc.get("subespecialidad","—"),
+                "subespecialidad": doc.get("subespecialidad", "—") if doc else "—",
 
                 "vital_signs": {
                     "presion_arterial": vit.get("presion_arterial", "—"),
@@ -1163,8 +1205,17 @@ def get_encounters_by_patient(patient_id: int):
 
         return full_data
 
+    except HTTPException:
+        raise
     except Exception as e:
-        print("❌ Error obteniendo historias del paciente:", str(e))
+        # Trace completo (no solo str)
+        logger.exception("❌ Error obteniendo historias del paciente (patient_id=%s)", patient_id)
+
+        # Si es un fallo transitorio de Supabase/red, responde 503 (no 500)
+        msg = str(e).lower()
+        if ("server disconnected" in msg) or ("timeout" in msg) or ("connection" in msg):
+            raise HTTPException(status_code=503, detail="Servicio de datos no disponible (Supabase). Intente nuevamente.")
+
         raise HTTPException(status_code=500, detail="Error al obtener historias del paciente")
 
 
